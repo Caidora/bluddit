@@ -244,6 +244,14 @@ live in `bluddit_api/utils`. Pool lifecycle and migration tooling remain separat
 infrastructure modules. The migration CLI also uses async connections. No SQL
 string interpolation or ORM is used.
 
+ID columns use the singular table/entity name plus `_id`, for example
+`accounts.account_id` and `refresh_sessions.refresh_session_id`, rather than a
+bare `id`. Foreign-key IDs use the referenced entity's prefix, so
+`sessions.account_id` references `accounts.account_id`. Keep natural/composite
+keys where appropriate; this rule does not require adding surrogate IDs.
+Existing bare `id` columns remain unchanged until
+[ticket 21](../tickets/21-table-prefixed-id-columns.md) is implemented.
+
 Migration `0001_accounts_and_sessions.sql` includes role and permission catalogs,
 a role-to-permission mapping, and one required role per account (default `member`).
 The seeded roles are Guild Master (`guild_master`), Officer (`officer`), and Member

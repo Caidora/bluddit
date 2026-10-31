@@ -62,6 +62,13 @@ checks you ran and explain any omissions. CI must still pass before merge.
   Include the appropriate lockfile whenever dependencies change.
 - Use explicit parameterized SQL and numbered migrations, with no ORM. Preserve
   existing data and document migration, compatibility, and recovery implications.
+- Name ID columns with the singular table/entity name in snake_case followed by
+  `_id`: `accounts.account_id`, `sessions.session_id`, and
+  `refresh_sessions.refresh_session_id`, never a bare `id`. Foreign-key ID columns
+  use the referenced entity's name, such as `sessions.account_id`. This applies to
+  new schema work; existing bare `id` columns are tracked in
+  [ticket 21](tickets/21-table-prefixed-id-columns.md) and must not be renamed as
+  an unrelated change. Natural and composite keys do not need synthetic ID columns.
 - Keep application SQL and transaction boundaries in repository modules, using
   one triple-quoted string per query. Routes belong in `bluddit_api/routes`, with
   shared helpers in `bluddit_api/utils`; routes and account CLI handlers call

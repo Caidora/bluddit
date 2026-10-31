@@ -1,6 +1,10 @@
 # Release 1 implementation tickets
 
-These tickets implement only [the release-1 feature plan](../website-feature-plan.md). Complete them in numerical order, one at a time. Dependencies identify the earlier work each ticket relies on; the sequence is intentionally suitable for a single implementing AI.
+Tickets 01–20 implement only [the release-1 feature plan](../website-feature-plan.md).
+Complete those tickets in numerical order, one at a time. Dependencies identify
+the earlier work each ticket relies on; the sequence is intentionally suitable
+for a single implementing AI. Separately scheduled maintenance is listed under
+Follow-up tickets.
 
 ## Working rules
 
@@ -50,6 +54,15 @@ To make tickets executable without reopening routine design decisions:
 | [18](./18-data-export-and-database-recovery.md) | Data export and database recovery | 17 |
 | [19](./19-production-operational-checks.md) | Production operational checks | 18 |
 | [20](./20-release-1-acceptance-and-cutover.md) | Release-1 acceptance and cutover | 19 |
+
+## Follow-up tickets
+
+These are separately scheduled maintenance work, outside the ordered release-1
+feature sequence above. Creating a ticket does not authorize implementing it now.
+
+| Ticket | Outcome | Depends on |
+| --- | --- | --- |
+| [21](./21-table-prefixed-id-columns.md) | Rename existing bare ID columns to table-prefixed IDs | 03 |
 
 ## Definition of release completion
 
