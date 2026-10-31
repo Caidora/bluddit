@@ -14,7 +14,9 @@ def check(base, *, readiness=True):
     ) as response:
         assert response.status == 200
         shell = response.read()
-        spa = b"Loading Bluddit" in shell
+        # Use a stable marker instead of visible copy. Keep the previous marker
+        # for smoke checks when rolling back to an older SPA release.
+        spa = b"data-bluddit-shell" in shell or b"Loading Bluddit" in shell
         assert spa or (not readiness and b"Shared progress." in shell), (
             "Application shell is missing"
         )
