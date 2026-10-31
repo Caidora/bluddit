@@ -2,9 +2,11 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from psycopg.errors import UniqueViolation
 from starlette.concurrency import run_in_threadpool
 
-from bluddit_api.utils.dependencies import AuthRepositoryDep
+from bluddit_api.utils.dependencies import AuthRepositoryDep, MembershipRepositoryDep
+from bluddit_api.utils.permissions import RolePolicy
 from bluddit_api.utils.auth import (
     COOKIE_NAME,
     TOKEN_PATH,
@@ -20,6 +22,8 @@ from bluddit_api.utils.security import (
     normalize_username,
     token_hash,
     verify_password,
+    validate_password,
+    PASSWORD_HASHER,
 )
 
 router = APIRouter(prefix="/api/auth")
@@ -34,6 +38,40 @@ class LoginInput(BaseModel):
     @classmethod
     def username_format(cls, value):
         return normalize_username(value)
+
+
+class RegistrationInput(LoginInput):
+    display_name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("display_name")
+    @classmethod
+    def display_name_format(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError("Display name is required")
+        return value
+
+    @field_validator("password")
+    @classmethod
+    def password_format(cls, value):
+        validate_password(value.get_secret_value())
+        return value
+
+
+@router.post("/register", status_code=201)
+async def register(
+    body: RegistrationInput, request: Request, repository: MembershipRepositoryDep
+):
+    # One bounded process-wide bucket prevents unique usernames bypassing limits.
+    await request.app.state.registration_throttle.reserve("registration")
+    async with request.app.state.password_slots:
+        encoded = await run_in_threadpool(
+            PASSWORD_HASHER.hash, body.password.get_secret_value()
+        )
+    try:
+        return await repository.register(body.username, body.display_name, encoded)
+    except UniqueViolation:
+        raise HTTPException(409, "Username unavailable") from None
 
 
 @router.post("/login")
@@ -110,4 +148,7 @@ async def logout(request: Request, repository: AuthRepositoryDep):
 
 @router.get("/me")
 async def me(account=Depends(current_account)):
-    return account
+    return {
+        **account,
+        "permissions": sorted(RolePolicy.permissions(account["role_name"])),
+    }

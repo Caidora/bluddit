@@ -5,9 +5,10 @@ Bluddit.com is the member website for Bluds, replacing the guild’s shared plan
 ## Project status
 
 Ticket 01 is complete, as confirmed by the maintainer. Ticket 02 adds database
-access and migrations. Ticket 03 adds authentication; its implementation is under
-review and production acceptance remains pending. See the tickets for verification
-and deployment evidence. Release 1 is the current scope.
+access and migrations. Ticket 03 authentication is merged and deployed; recorded
+feature acceptance remains pending. Ticket 04 adds membership administration and
+fixed Python permissions, with review and production acceptance pending. See the
+tickets for verification and deployment evidence. Release 1 is the current scope.
 
 ## Release 1
 
@@ -42,8 +43,9 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 - GitHub Actions for CI and deployment.
 
 The application includes a minimal public page, health/readiness checks, and the
-ticket 03 authentication API and account-recovery CLI. Account screens arrive in
-ticket 05.
+authentication/membership APIs and account-recovery CLI. Account screens arrive
+in ticket 05. The [permission matrix](docs/permissions.md) documents current gates
+and resource checks required by later features.
 The Python database driver is Psycopg 3, with a shared connection pool, explicit
 SQL transactions, and numbered migrations. There is no ORM.
 

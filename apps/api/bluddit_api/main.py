@@ -12,6 +12,7 @@ from bluddit_api.database import Database, DatabaseSettings
 from bluddit_api.migrate import load_migrations
 from bluddit_api.routes.auth import router as auth_router
 from bluddit_api.routes.health import router as health_router
+from bluddit_api.routes.accounts import router as accounts_router
 from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 
 
@@ -46,9 +47,11 @@ def create_app() -> FastAPI:
     app.state.migrations = migrations
     app.state.auth_settings = auth_settings
     app.state.login_throttle = LoginThrottle()
+    app.state.registration_throttle = LoginThrottle(capacity=1)
     app.state.password_slots = asyncio.Semaphore(2)
     app.include_router(auth_router)
     app.include_router(health_router)
+    app.include_router(accounts_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):
@@ -75,7 +78,7 @@ def create_app() -> FastAPI:
                 )
         if (
             response is None
-            and request.url.path == "/api/auth/login"
+            and request.url.path in {"/api/auth/login", "/api/auth/register"}
             and request.method == "POST"
         ):
             if (
@@ -103,7 +106,7 @@ def create_app() -> FastAPI:
                 response = JSONResponse(
                     status_code=503, content={"detail": "Database unavailable"}
                 )
-        if request.url.path.startswith("/api/auth/"):
+        if request.url.path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
 

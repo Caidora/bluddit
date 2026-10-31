@@ -13,8 +13,8 @@ Base-image patch updates are picked up by a new build, not by restarting a relea
 
 The Python PostgreSQL driver is **Psycopg 3.3.6** (binary distribution), with
 **psycopg-pool 3.3.3**, explicit parameterized SQL, and no ORM. Numbered SQL
-migrations introduce accounts, roles, role permissions, and sessions. Authentication
-endpoints remain in ticket 03.
+migrations introduce accounts, roles, and sessions. Role permissions are defined
+in Python; migration 0003 removes the obsolete database permission tables.
 
 ## Frontend rendering
 
@@ -247,8 +247,24 @@ such as `repository: AuthRepositoryDep` and `repository: HealthRepositoryDep`.
 Providers in `bluddit_api/utils/dependencies.py` construct repositories using `Depends(get_database)`; routes and authentication
 helpers receive repositories instead of database connections. Readiness uses an
 optional repository so an unconfigured database still returns its existing 503 response.
-Application SQL and short `async with database.transaction() as connection:`
-blocks belong in `bluddit_api/repositories`, not routes or account CLI handlers.
+Application SQL belongs in `bluddit_api/repositories`. Membership repository
+methods represent full persistence operations and can execute several queries
+in their own transaction, without chaining repository helpers. The provider
+constructs the repository with the shared Database; there is no request-wide
+transaction. API handlers perform permission and input/transition checks before
+calling the operation. Those checks may race with other requests. SQL predicates
+still reject conflicting transitions and protect leadership records. Membership
+updates and session revocation commit separately. Rejection/deactivation routes
+call the reusable auth repository revocation operation after the membership update.
+If revocation fails, the API returns 503 but the membership change remains committed.
+Inactive/rejected accounts are still denied immediately by live membership checks;
+reactivating before successful revocation can restore old sessions. Concurrent
+reactivation/login can also race with revocation. These tradeoffs are accepted. GM succession locks the
+affected accounts, rechecks the current active GM, and performs both role updates in one
+transaction. Each method commits before returning success. Handlers do not execute
+SQL or manage connections. Existing
+auth/account-recovery repositories retain their transaction boundaries and static
+helpers; this ticket does not refactor those unrelated operations.
 Keep each query in one triple-quoted string and bind values using named
 placeholders such as `%(account_id)s` with a separate mapping such as
 `{"account_id": account_id}`. Do not use positional `%s` placeholders or parameter
@@ -268,14 +284,14 @@ keys where appropriate; this rule does not require adding surrogate IDs.
 Existing bare `id` columns remain unchanged until
 [ticket 21](../tickets/21-table-prefixed-id-columns.md) is implemented.
 
-Migration `0001_accounts_and_sessions.sql` includes role and permission catalogs,
-a role-to-permission mapping, and one required role per account (default `member`).
+Each account has one required role (default `member`).
 The seeded roles are Guild Master (`guild_master`), Officer (`officer`), and Member
 (`member`). Accounts inherit all permissions from their single role; there are no
-direct account grants. Permission policy and role mappings are defined in ticket
-04, alongside membership gating and resource-scoped authorization. Organizer and
-quartermaster duties are permission/scoped-assignment concerns, not account roles.
-No access is granted merely by adding the schema.
+direct account grants. `utils/permissions.py` defines the fixed Python policy;
+there is no startup synchronization or database override. Migration 0003 drops
+`role_permissions` and `permissions`, retaining the referenced `roles` table.
+Organizer and quartermaster assignments and attribute checks arrive with the
+feature tickets that introduce their resources. See [the permission matrix](permissions.md).
 
 Username formatting, membership-state validation, and token-hash-length validation
 belong to the application endpoints in tickets 03–04. The migration retains
@@ -328,24 +344,24 @@ may require signing in again.
 | `POST /api/auth/login` | JSON `username`, `password`; returns `access_token`, `token_type: Bearer`, `expires_in: 600` and sets the refresh cookie |
 | `POST /api/auth/token` | Refresh cookie; rotates it and returns the same access-token shape |
 | `DELETE /api/auth/token` | Revokes the refresh session (invalidating all its access tokens), clears the cookie, returns 204; safe to repeat |
-| `GET /api/auth/me` | `Authorization: Bearer <access_token>`; returns `id`, `username`, `display_name`, `membership_state`, `role_name`, `timezone` |
+| `GET /api/auth/me` | `Authorization: Bearer <access_token>`; returns `id`, `username`, `display_name`, `membership_state`, `role_name`, `timezone`, and sorted effective `permissions` |
 
 Only `active` accounts authenticate. `pending`, `rejected`, and `inactive` cannot
 log in, refresh, or use existing access tokens. Request-time account and parent
 session checks enforce immediate logout, deactivation, and password-reset effects.
 New logins are independent sessions; resetting a password invalidates every device.
-Registration/approval/permission management arrive in ticket 04, and account
-screens arrive in ticket 05. No permissions are seeded by account bootstrap.
+Registration and membership administration are available through the API described
+below. Account screens arrive in ticket 05. Bootstrap does not write permission mappings.
 
 Set `AUTH_ALLOWED_ORIGINS` to comma-separated exact origins (scheme, hostname,
 and optional port, no trailing slash). All unsafe `/api/` requests require an
-allowed `Origin` plus `X-CSRF-Protection: 1`. Login accepts JSON only and has an
+allowed `Origin` plus `X-CSRF-Protection: 1`. Login and registration accept JSON only and have an
 8 KiB body limit. CORS credentials are not enabled. Local Compose defaults to
 `http://localhost:LOCAL_PORT` and `http://127.0.0.1:LOCAL_PORT`; override the setting
 for a different development origin. A directly run API needs the setting too.
 Production requires explicit HTTPS origins; the deployment writes
 `AUTH_ALLOWED_ORIGINS=https://APP_DOMAIN` into each release's `release.env`.
-Authentication errors and successes use `Cache-Control: no-store`. Do not log
+All API responses use `Cache-Control: no-store`. Do not log
 request bodies, cookies, bearer tokens, or passwords.
 
 The `bluddit_refresh` cookie is HttpOnly, SameSite=Strict, host-only, and scoped to
@@ -360,7 +376,72 @@ per fixed 15-minute window, including successful attempts. Limits return 429 and
 keys are rejected until space expires. Counter reservation is concurrency-safe;
 expired counters are cleaned as requests arrive. Restart clears counters, and
 limits apply per process. Run one API worker/replica until shared counters are
-introduced. Two password verifications can run concurrently to bound Argon2 memory.
+introduced. Registration has a separate process-wide bucket of 10 attempts per
+15 minutes, including duplicates and successes; changing usernames does not bypass
+it. This deliberately conservative limit suits the initial single-guild rollout.
+Two password hashing/verification operations can run concurrently to bound Argon2 memory.
+
+### Membership administration API
+
+All administrative endpoints require a current active Officer or Guild Master
+bearer token. Promotion to Officer, demotion to Member, and passing Guild Master
+additionally require the current active GM. Each mutation has a distinct route
+and repository method, gated by `accounts.manage`.
+
+| Endpoint | Request / result |
+| --- | --- |
+| `POST /api/auth/register` | Public JSON `username`, `display_name` (trimmed, 1–100 characters), `password` (12–128 characters); returns 201 with the pending Member account, without tokens/cookies |
+| `GET /api/accounts` | Optional `membership_state`, `limit` (1–100, default 50), `offset` (default 0); returns `{accounts, limit, offset}` ordered by ID |
+| `GET /api/accounts/{account_id}` | Returns public account fields only |
+| `POST /api/accounts/{account_id}/approve` | Pending → active |
+| `POST /api/accounts/{account_id}/reject` | Pending → rejected; then separately revokes every refresh-session family |
+| `POST /api/accounts/{account_id}/deactivate` | Active → inactive; then separately revokes every refresh-session family |
+| `POST /api/accounts/{account_id}/activate` | Rejected/inactive → active; fresh login required after successful session revocation |
+| `POST /api/accounts/{account_id}/promote-to-officer` | GM only; Member → Officer |
+| `POST /api/accounts/{account_id}/demote-to-member` | GM only; Officer → Member |
+| `POST /api/accounts/{account_id}/pass-guild-master` | GM only; transfers to another active account; outgoing GM becomes Officer atomically |
+| `GET /api/permissions` | Read-only `{permissions, roles}` catalog and fixed mappings |
+
+Account results contain `id`, `username`, `display_name`, `membership_state`,
+`role_name`, and `timezone`; credential hashes and session records are excluded.
+Mutations return the resulting target account. Unknown accounts return 404,
+invalid input 422, invalid state transitions/repeated actions/duplicate usernames
+409, missing or invalid authentication 401, and insufficient authority 403.
+Role changes take effect on existing bearer tokens at the next request. The old
+generic role-update and GM-update PUT endpoints are not available.
+
+Membership mutations and first-officer bootstrap share advisory transaction lock
+730003 for operations that can reduce leadership: deactivation, demotion, and GM
+succession. Succession locks affected accounts in ID order and rechecks GM
+authority inside the same transaction as both updates. Other permission checks
+are request-time API checks. Conditional writes reject conflicting target states;
+the last active administrator cannot be deactivated or demoted, and a GM
+cannot be deactivated or demoted outside transfer.
+
+### First Guild Master and migration compatibility
+
+The repo manager establishes the first GM directly in the database, promoting an
+existing active account in a transaction. Coordinate this maintenance with account
+administration and acquire `pg_advisory_xact_lock(730003)` before reading/updating
+accounts. Verify no GM exists, update exactly the intended active account to
+`role_name = 'guild_master'`, and verify the result before committing. No credentials
+or actual member identifiers belong in repository examples or logs.
+
+Zero GMs is allowed before this manual bootstrap. Migration 0003 enforces at most
+one GM across all membership states, and API operations preserve one active GM
+after bootstrap. Further succession uses the transfer endpoint; Officers cannot
+change the GM. Direct database administration must preserve these invariants.
+
+Migration 0003 preserves accounts and roles, drops the unused permission tables,
+and fails transactionally with a clear error if multiple GM accounts exist. Resolve
+duplicates manually before retrying; the migration never chooses an account.
+Historical migrations remain unchanged.
+
+Image rollback does not recreate dropped tables. Ticket 03 runtime authentication
+does not query them, but its older migration checker rejects a ledger containing
+0003, so readiness will remain unavailable on that image. Prefer a forward fix;
+any rollback image must understand the migration ledger and avoid the removed
+tables. Never delete ledger entries or reset member data to force compatibility.
 
 ### Interactive administrative CLI
 
