@@ -8,8 +8,11 @@ for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PORT DEPLOY_PATH APP_DOMAIN SSH_KEY S
 done
 [[ $DEPLOY_HOST =~ ^[a-zA-Z0-9.:-]+$ ]] || { echo 'Invalid DEPLOY_HOST'; exit 1; }
 [[ $DEPLOY_USER =~ ^[a-zA-Z_][a-zA-Z0-9_-]*$ ]] || { echo 'Invalid DEPLOY_USER'; exit 1; }
-[[ $DEPLOY_PORT =~ ^[0-9]+$ ]] && (( DEPLOY_PORT > 0 && DEPLOY_PORT < 65536 )) || { echo 'Invalid DEPLOY_PORT'; exit 1; }
-[[ $DEPLOY_PATH =~ ^/[a-zA-Z0-9_./-]+$ && $DEPLOY_PATH != / && $DEPLOY_PATH != *..* ]] || { echo 'Invalid DEPLOY_PATH'; exit 1; }
+if [[ ! $DEPLOY_PORT =~ ^[0-9]{1,5}$ ]] || (( 10#$DEPLOY_PORT < 1 || 10#$DEPLOY_PORT > 65535 )); then
+  echo 'Invalid DEPLOY_PORT: use a numeric port between 1 and 65535'
+  exit 1
+fi
+[[ $DEPLOY_PATH =~ ^/[a-zA-Z0-9_./-]+$ && $DEPLOY_PATH != / && $DEPLOY_PATH != *..* ]] || { echo 'Invalid DEPLOY_PATH: use an absolute application directory without shell expressions'; exit 1; }
 [[ $APP_DOMAIN =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]] || { echo 'Invalid APP_DOMAIN: use a hostname without https:// or a path'; exit 1; }
 umask 077
 mkdir -p "$RUNNER_TEMP/ssh"

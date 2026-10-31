@@ -10,6 +10,8 @@ FROM development AS build
 RUN npm run typecheck && npm run build
 
 FROM node:24-bookworm-slim AS production
+ARG GIT_SHA=local
+LABEL org.opencontainers.image.source="https://github.com/Caidora/bluddit" org.opencontainers.image.revision=$GIT_SHA
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 WORKDIR /app
 COPY apps/web/package*.json ./

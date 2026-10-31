@@ -1,4 +1,3 @@
-import contextlib
 import importlib.util
 import json
 import os
@@ -96,6 +95,58 @@ class DeploymentTests(unittest.TestCase):
         result = subprocess.run(["bash", str(script)], env={"PATH": os.environ["PATH"]}, capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Missing repository secret: DEPLOY_HOST", result.stdout)
+
+    def prepare_stage(self):
+        manifest = {key: "example/image@sha256:" + "a" * 64 for key in ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE")}
+        manifest["release_id"] = "a" * 40 + "-123"
+        (self.payload / "manifest.json").write_text(json.dumps(manifest))
+        (self.payload / "postgres_password").write_text("test-password")
+        return manifest
+
+    def test_mutable_image_tags_are_rejected(self):
+        manifest = self.prepare_stage()
+        manifest["WEB_IMAGE"] = "example/image:latest"
+        (self.payload / "manifest.json").write_text(json.dumps(manifest))
+        with self.operation.locked(), patch.object(deploy, "run") as command:
+            with self.assertRaisesRegex(deploy.DeploymentError, "immutable image digest"):
+                self.operation.stage()
+            command.assert_not_called()
+
+    def test_database_password_cannot_be_silently_rotated(self):
+        self.prepare_stage()
+        with self.operation.locked(), patch.object(deploy, "run") as command:
+            (self.operation.shared / "postgres_password").write_text("existing-password")
+            with self.assertRaisesRegex(deploy.DeploymentError, "rotation"):
+                self.operation.stage()
+            self.assertEqual((self.operation.shared / "postgres_password").read_text(), "existing-password")
+            command.assert_not_called()
+
+    def test_unmanaged_database_volume_is_not_adopted(self):
+        self.prepare_stage()
+        with self.operation.locked(), patch.object(deploy, "run", return_value=b""), patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+            with self.assertRaisesRegex(deploy.DeploymentError, "Unmanaged database volume"):
+                self.operation.stage()
+            self.assertFalse((self.operation.shared / "postgres_password").exists())
+
+    def test_unmanaged_compose_project_is_not_replaced(self):
+        self.prepare_stage()
+        with self.operation.locked(), patch.object(deploy, "run", return_value=b"existing-container"):
+            with self.assertRaisesRegex(deploy.DeploymentError, "Unmanaged Bluddit Compose project"):
+                self.operation.stage()
+            self.assertFalse((self.operation.shared / "postgres_password").exists())
+
+    def test_verification_rejects_public_database_port(self):
+        inspection = [{"HostConfig": {"PortBindings": {"5432/tcp": [{"HostIp": "0.0.0.0", "HostPort": "5432"}]}}}]
+        with patch.object(self.operation, "compose", return_value=b"db-id"), patch.object(deploy, "run", return_value=json.dumps(inspection).encode()):
+            with self.assertRaisesRegex(deploy.DeploymentError, "unexpectedly published"):
+                self.operation.verify_network(self.root)
+
+    def test_compose_download_checksum_failure_never_installs_binary(self):
+        with patch.object(deploy.platform, "machine", return_value="x86_64"), patch.object(Path, "exists", return_value=False), patch.object(deploy.urllib.request, "urlopen") as request, patch.object(Path, "write_bytes") as write:
+            request.return_value.__enter__.return_value.read.return_value = b"untrusted download"
+            with self.assertRaisesRegex(deploy.DeploymentError, "checksum"):
+                self.operation.install_compose()
+            write.assert_not_called()
 
 
 if __name__ == "__main__":

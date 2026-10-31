@@ -84,6 +84,7 @@ jobs:
         with:
           context: .
           file: apps/web/Dockerfile
+          build-args: GIT_SHA=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.names.outputs.prefix }}-web:${{ github.sha }}
@@ -92,6 +93,7 @@ jobs:
         with:
           context: .
           file: apps/api/Dockerfile
+          build-args: GIT_SHA=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.names.outputs.prefix }}-api:${{ github.sha }}

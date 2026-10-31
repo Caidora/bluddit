@@ -43,7 +43,7 @@ migrations. There is no ORM.
 
 ## Local development
 
-With Docker and Compose v2 installed:
+With Docker and the Compose plugin (v2 or newer) installed:
 
 ```sh
 cp .env.example .env

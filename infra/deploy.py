@@ -6,8 +6,10 @@ Release metadata contains no credentials; database credentials live in shared/.
 
 import contextlib
 import fcntl
+import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import shutil
@@ -43,7 +45,7 @@ class Deployment:
             raise DeploymentError("DEPLOY_PATH must be an absolute application directory")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]+\.[A-Za-z]{2,}", domain):
             raise DeploymentError("APP_DOMAIN must be a hostname")
-        self.root, self.payload, self.domain, self.email = root.resolve(), payload.resolve(), domain, email
+        self.root, self.payload, self.domain, self.email = root.resolve(), payload.resolve(), domain.lower(), email
         self.shared = self.root / "shared"
         self.releases = self.root / "releases"
         self.environment = os.environ.copy()
@@ -69,7 +71,7 @@ class Deployment:
         # Install only missing prerequisites; never upgrade unrelated host packages.
         packages = []
         if not shutil.which("docker"):
-            packages += ["docker.io", "docker-compose-v2"]
+            packages += ["docker.io"]
         if not shutil.which("nginx"):
             listeners = run(["ss", "-lntH"]).decode()
             if re.search(r":(?:80|443)\s", listeners):
@@ -85,8 +87,34 @@ class Deployment:
             run(["apt-get", "install", "-y", *packages], env=env)
         run(["systemctl", "enable", "--now", "docker"])
         run(["docker", "info"])
+        compose_check = subprocess.run(["docker", "compose", "version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if compose_check.returncode:
+            self.install_compose()
         run(["docker", "compose", "version"])
         run(["nginx", "-t"])
+
+    @staticmethod
+    def install_compose():
+        # Official release checksums recorded from Docker's GitHub release API.
+        checksums = {
+            "x86_64": "47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0",
+            "aarch64": "42cfa75f51ad0ccf290bad37899e0038a8c10a0069e85233ecc1d53e3ff1347d",
+        }
+        architecture = platform.machine()
+        if architecture not in checksums:
+            raise DeploymentError("Docker Compose bootstrap supports amd64/arm64 hosts")
+        destination = Path("/usr/local/lib/docker/cli-plugins/docker-compose")
+        if destination.exists():
+            raise DeploymentError("Existing Docker Compose plugin is unusable; review before replacing it")
+        url = f"https://github.com/docker/compose/releases/download/v5.6.1/docker-compose-linux-{architecture}"
+        with urllib.request.urlopen(url, timeout=120) as response:
+            binary = response.read()
+        if hashlib.sha256(binary).hexdigest() != checksums[architecture]:
+            raise DeploymentError("Docker Compose checksum verification failed")
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        destination.parent.chmod(0o755)
+        destination.write_bytes(binary)
+        destination.chmod(0o755)
 
     def authenticate(self):
         token = (self.payload / "registry_token").read_bytes()
@@ -139,6 +167,9 @@ class Deployment:
                 raise DeploymentError("POSTGRES_PASSWORD differs from the initialized database; explicit rotation is required")
         else:
             # Refuse to silently adopt a database whose credentials/ownership are unknown.
+            containers = run(["docker", "ps", "-aq", "--filter", "label=com.docker.compose.project=bluddit"])
+            if containers.strip():
+                raise DeploymentError("Unmanaged Bluddit Compose project exists; review ownership before adoption")
             existing = subprocess.run(["docker", "volume", "inspect", "bluddit_postgres_data"],
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if existing.returncode == 0:
@@ -178,6 +209,9 @@ class Deployment:
         webroot = Path("/var/lib/bluddit-acme")
         webroot.mkdir(exist_ok=True, mode=0o755)
         webroot.chmod(0o755)
+        for directory in (webroot / ".well-known", webroot / ".well-known/acme-challenge"):
+            directory.mkdir(exist_ok=True, mode=0o755)
+            directory.chmod(0o755)
         challenge = f"location /.well-known/acme-challenge/ {{ root {webroot}; }}"
         common = """location / {
   proxy_pass http://127.0.0.1:18080;
@@ -274,6 +308,20 @@ server_tokens off;
             self.sql(release, f"DROP TABLE IF EXISTS {table}")
         print("Container restart and database persistence checks passed", flush=True)
 
+    def verify_network(self, release):
+        for service in ("db", "api", "web"):
+            container = self.compose(release, "ps", "-q", service).decode().strip()
+            if not container:
+                raise DeploymentError("A required private service is not running")
+            inspection = json.loads(run(["docker", "inspect", container]))[0]
+            if inspection["HostConfig"].get("PortBindings"):
+                raise DeploymentError("A private application/database port is unexpectedly published")
+        container = self.compose(release, "ps", "-q", "nginx").decode().strip()
+        inspection = json.loads(run(["docker", "inspect", container]))[0]
+        if inspection["HostConfig"].get("PortBindings") != {"80/tcp": [{"HostIp": "127.0.0.1", "HostPort": "18080"}]}:
+            raise DeploymentError("Application ingress must bind only to the configured loopback port")
+        print("Private database/application network checks passed", flush=True)
+
     def backup(self, release):
         directory = self.root / "backups"
         directory.mkdir(exist_ok=True, mode=0o700)
@@ -315,6 +363,7 @@ server_tokens off;
                     raise DeploymentError("Database image changes require explicit compatibility review; automatic rollback refused")
                 self.rollout(release)
             elif action == "verify":
+                self.verify_network(self.current())
                 self.verify_persistence(self.current())
                 self.backup(self.current())
             elif action == "backup":

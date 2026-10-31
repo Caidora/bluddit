@@ -12,6 +12,8 @@ FROM development AS dependencies
 RUN uv sync --locked --no-dev
 
 FROM python:3.13-slim-bookworm AS production
+ARG GIT_SHA=local
+LABEL org.opencontainers.image.source="https://github.com/Caidora/bluddit" org.opencontainers.image.revision=$GIT_SHA
 ENV PYTHONUNBUFFERED=1 APP_ENV=production PATH=/app/.venv/bin:$PATH
 RUN useradd --system --uid 10001 --create-home app
 WORKDIR /app

@@ -16,7 +16,7 @@ There are no application migrations or authentication features in ticket 01.
 
 ## Fresh checkout
 
-Install Docker with Compose v2. Copy `.env.example` to `.env`, set a local
+Install Docker with the Compose plugin (v2 or newer). Copy `.env.example` to `.env`, set a local
 `POSTGRES_PASSWORD`, then run:
 
 ```sh
@@ -79,8 +79,10 @@ verification. Neither credential values nor raw server diagnostics are printed.
 Before first deployment, run **Hetzner preflight**. It reports readiness only.
 Confirm DNS A/AAAA records reach this server and public TCP 80/443 are permitted
 by the Hetzner and host firewalls. SSH must be reachable from GitHub-hosted runners.
-On an apt/systemd host the deployment installs missing Docker/Compose, Nginx,
-and Certbot packages. Existing installations are reused; unrelated packages and
+On an apt/systemd host the deployment installs missing Docker, Nginx,
+and Certbot packages. When Compose is missing, it installs Docker's official
+Compose 5.6.1 CLI plugin after verifying its pinned SHA-256 checksum (amd64/arm64).
+Existing installations are reused; unrelated packages and
 services are not upgraded or removed. Other package managers require prerequisites
 to be provisioned first through a reviewed CI/CD host-setup change.
 
@@ -128,7 +130,7 @@ server journal/container logs privately. Do not paste raw server logs into publi
 issues or workflow logs; they may contain sensitive details once features arrive.
 
 Dispatch `restart` to restart current containers and check health. Dispatch `verify`
-to create an isolated disposable probe table, restart all containers, check the
+to check that application/database ports are private, create an isolated disposable probe table, restart all containers, check the
 probe survived, remove it, and create/restore-test a backup. It does not change
 member records. Verify operations briefly interrupt the application.
 
