@@ -86,3 +86,23 @@ Publication and production deployment were correctly skipped for the PR.
 Pending: required maintainer PR approval, merge and Actions deployment, and public
 HTTPS acceptance using dedicated test records. No ticket 03 production verification
 has happened; do not mark Complete yet.
+
+### PR review updates — 2026-10-31
+
+Addressed the review's organization and SQL readability requests. Moved auth and
+health endpoints into `bluddit_api/routes`, shared auth configuration/dependencies
+and credential/token helpers into `bluddit_api/utils`, and application queries
+into `bluddit_api/repositories`. Queries use one triple-quoted SQL string each.
+Repositories own connection/transaction blocks; account CLI handlers delegate
+persistence to the account repository. Pool lifecycle and migration tooling remain
+infrastructure modules. Updated contributor/runbook guidance and internal imports.
+
+Preserved transaction boundaries for session creation, atomic refresh/access
+issuance, serialized officer bootstrap, and password reset/session revocation.
+There are no API, schema, credential, or session-policy changes.
+
+Review-update verification: `make verify` passed frontend types/build, all 26
+API/database checks (including concurrent refresh and multi-device reset), all 18
+infrastructure checks, and base/reload Compose validation using an isolated
+PostgreSQL test container. `git diff --check` passed. PR review and production
+acceptance remain pending.

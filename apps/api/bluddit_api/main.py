@@ -9,8 +9,10 @@ import psycopg
 from psycopg_pool import PoolTimeout
 
 from bluddit_api.database import Database, DatabaseSettings
-from bluddit_api.migrate import MigrationError, load_migrations, pending_migrations
-from bluddit_api.auth import AuthSettings, LoginThrottle, router as auth_router
+from bluddit_api.migrate import load_migrations
+from bluddit_api.routes.auth import router as auth_router
+from bluddit_api.routes.health import router as health_router
+from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 
 
 def create_app() -> FastAPI:
@@ -36,10 +38,12 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Bluddit API", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
+    app.state.migrations = migrations
     app.state.auth_settings = auth_settings
     app.state.login_throttle = LoginThrottle()
     app.state.password_slots = asyncio.Semaphore(2)
     app.include_router(auth_router)
+    app.include_router(health_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):
@@ -73,22 +77,5 @@ def create_app() -> FastAPI:
         if request.url.path.startswith("/api/auth/"):
             response.headers["Cache-Control"] = "no-store"
         return response
-
-    @app.get("/api/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
-
-    @app.get("/api/ready")
-    async def ready():
-        database = app.state.database
-        if database:
-            try:
-                async with database.transaction() as connection:
-                    await connection.execute("SELECT 1")
-                    if not await pending_migrations(connection, migrations):
-                        return {"status": "ok"}
-            except (psycopg.Error, PoolTimeout, MigrationError):
-                pass
-        return JSONResponse(status_code=503, content={"status": "unavailable"})
 
     return app

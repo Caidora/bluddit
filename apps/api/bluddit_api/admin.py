@@ -10,7 +10,8 @@ from psycopg_pool import PoolTimeout
 from starlette.concurrency import run_in_threadpool
 
 from bluddit_api.database import Database, DatabaseSettings
-from bluddit_api.security import ACTIVE, PASSWORD_HASHER, normalize_username, validate_password
+from bluddit_api.repositories.accounts import AccountRepository
+from bluddit_api.utils.security import PASSWORD_HASHER, normalize_username, validate_password
 
 
 async def create_first_officer(database, username: str, display_name: str, password: str):
@@ -20,36 +21,14 @@ async def create_first_officer(database, username: str, display_name: str, passw
     if not 1 <= len(display_name) <= 100:
         raise ValueError("Display name must contain 1–100 characters")
     encoded = await run_in_threadpool(PASSWORD_HASHER.hash, password)
-    async with database.transaction() as connection:
-        await connection.execute("SELECT pg_advisory_xact_lock(730003)")
-        cursor = await connection.execute(
-            "SELECT 1 FROM accounts WHERE membership_state = %s AND role_name IN ('officer', 'guild_master') LIMIT 1",
-            (ACTIVE,),
-        )
-        if await cursor.fetchone():
-            raise ValueError("An active Officer or Guild Master already exists")
-        await connection.execute(
-            "INSERT INTO accounts (username, display_name, password_hash, membership_state, role_name) "
-            "VALUES (%s, %s, %s, %s, 'officer')", (username, display_name, encoded, ACTIVE),
-        )
+    await AccountRepository(database).create_first_officer(username, display_name, encoded)
 
 
 async def reset_password(database, username: str, password: str):
     username = normalize_username(username)
     validate_password(password)
     encoded = await run_in_threadpool(PASSWORD_HASHER.hash, password)
-    async with database.transaction() as connection:
-        cursor = await connection.execute(
-            "UPDATE accounts SET password_hash = %s, updated_at = now() WHERE lower(username) = %s RETURNING id",
-            (encoded, username),
-        )
-        account = await cursor.fetchone()
-        if account is None:
-            raise ValueError("Account not found")
-        await connection.execute(
-            "UPDATE refresh_sessions SET revoked_at = now() WHERE account_id = %s AND revoked_at IS NULL",
-            (account[0],),
-        )
+    await AccountRepository(database).reset_password(username, encoded)
 
 
 async def run(args, password):

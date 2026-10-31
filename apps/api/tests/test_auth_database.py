@@ -6,10 +6,10 @@ from httpx import ASGITransport, AsyncClient
 import pytest
 
 from bluddit_api.admin import create_first_officer, reset_password
-from bluddit_api.auth import COOKIE_NAME, TOKEN_PATH, AuthSettings
+from bluddit_api.utils.auth import COOKIE_NAME, TOKEN_PATH, AuthSettings
 from bluddit_api.main import create_app
 from bluddit_api.migrate import run_migrations
-from bluddit_api.security import PASSWORD_HASHER, token_hash
+from bluddit_api.utils.security import PASSWORD_HASHER, token_hash
 
 pytestmark = pytest.mark.anyio
 PASSWORD = "synthetic-password-123"

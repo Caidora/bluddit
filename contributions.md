@@ -62,6 +62,11 @@ checks you ran and explain any omissions. CI must still pass before merge.
   Include the appropriate lockfile whenever dependencies change.
 - Use explicit parameterized SQL and numbered migrations, with no ORM. Preserve
   existing data and document migration, compatibility, and recovery implications.
+- Keep application SQL and transaction boundaries in repository modules, using
+  one triple-quoted string per query. Routes belong in `bluddit_api/routes`, with
+  shared helpers in `bluddit_api/utils`; routes and account CLI handlers call
+  repositories rather than managing connections. Pool lifecycle and migration
+  tooling remain infrastructure concerns.
 - During review, update the existing migration in the same PR if it has not run
   in production; do not add another migration just to revise that PR. Once a
   migration has run in production, preserve its contents and checksum and add a

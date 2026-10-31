@@ -6,10 +6,10 @@ from fastapi.testclient import TestClient
 import pytest
 
 from bluddit_api import admin
-from bluddit_api.auth import AuthSettings, LoginThrottle
+from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 from bluddit_api.main import create_app
 from bluddit_api.database import get_database
-from bluddit_api.security import new_token, normalize_username, token_hash, validate_password
+from bluddit_api.utils.security import new_token, normalize_username, token_hash, validate_password
 
 
 def test_credentials_and_token_validation():

@@ -231,12 +231,18 @@ missing local configuration leaves process health working and readiness at 503.
 
 One async pool per API process has 1–5 connections and a three-second acquisition/query
 timeout. API startup opens it without waiting for the database, so process health
-remains available during outages. Use `async def` for FastAPI endpoints and
-`Depends(get_database)` with a short `async with database.transaction() as connection:`
-block around each business operation. Await connection execution and cursor fetch
-operations. Pass values using `%s` placeholders and a separate parameter sequence.
-The block commits on success and rolls back on error. The migration CLI also uses
-async connections. No SQL string interpolation or ORM is used.
+remains available during outages. Routes live in `bluddit_api/routes`; use
+`async def` endpoints and `Depends(get_database)` to construct repositories.
+Application SQL and short `async with database.transaction() as connection:`
+blocks belong in `bluddit_api/repositories`, not routes or account CLI handlers.
+Keep each query in one triple-quoted string and pass values using `%s` placeholders
+and a separate parameter sequence. Await execution and cursor fetch operations.
+Each business operation commits on success and rolls back on error; refresh
+rotation/access issuance and password reset/session revocation remain atomic.
+Shared authentication configuration, dependencies, and credential/token helpers
+live in `bluddit_api/utils`. Pool lifecycle and migration tooling remain separate
+infrastructure modules. The migration CLI also uses async connections. No SQL
+string interpolation or ORM is used.
 
 Migration `0001_accounts_and_sessions.sql` includes role and permission catalogs,
 a role-to-permission mapping, and one required role per account (default `member`).
