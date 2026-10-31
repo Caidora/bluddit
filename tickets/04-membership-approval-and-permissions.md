@@ -161,3 +161,14 @@ the SQL statement after the first write inside each operation; tests also cover
 concurrent leadership changes, a stale GM caller, and succession between a
 deactivation precheck and its write. Ruff format/check and `git diff --check`
 passed. Review, deployment, and production acceptance remain pending.
+
+### Membership predicate cleanup — 2026-10-31
+
+Removed the redundant GM exclusions from approval, rejection, and activation:
+these transitions assume a GM is always active. Retained the deactivation
+predicate, which protects an active GM, including succession after an API precheck.
+No new support for pending/inactive GM accounts or schema changes was added.
+
+Verification: Ruff format/check, `git diff --check`, and `make verify` passed
+(17 API/unit tests, 31 PostgreSQL 17 integration tests, 18 infrastructure tests,
+frontend types/build, and both Compose configurations).

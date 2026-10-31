@@ -67,7 +67,7 @@ class MembershipRepository:
             cursor = await connection.execute(
                 """
                 UPDATE accounts SET membership_state = 'active', updated_at = now()
-                WHERE id = %(account_id)s AND membership_state = 'pending' AND role_name <> 'guild_master'
+                WHERE id = %(account_id)s AND membership_state = 'pending'
                 RETURNING id, username, display_name, membership_state, role_name, timezone
                 """,
                 {"account_id": account_id},
@@ -81,7 +81,7 @@ class MembershipRepository:
             cursor = await connection.execute(
                 """
                 UPDATE accounts SET membership_state = 'rejected', updated_at = now()
-                WHERE id = %(account_id)s AND membership_state = 'pending' AND role_name <> 'guild_master'
+                WHERE id = %(account_id)s AND membership_state = 'pending'
                 RETURNING id, username, display_name, membership_state, role_name, timezone
                 """,
                 {"account_id": account_id},
@@ -130,7 +130,7 @@ class MembershipRepository:
             cursor = await connection.execute(
                 """
                 UPDATE accounts SET membership_state = 'active', updated_at = now()
-                WHERE id = %(account_id)s AND membership_state IN ('rejected', 'inactive') AND role_name <> 'guild_master'
+                WHERE id = %(account_id)s AND membership_state IN ('rejected', 'inactive')
                 RETURNING id, username, display_name, membership_state, role_name, timezone
                 """,
                 {"account_id": account_id},
