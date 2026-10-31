@@ -1,6 +1,6 @@
 # 03: Session login and logout
 
-Status: In progress — implemented and locally verified; PR review, CI, deployment, and production acceptance pending
+Status: In progress — implementation and CI verified; PR review, deployment, and production acceptance pending
 
 Dependencies: Ticket 02.
 
@@ -77,6 +77,12 @@ Local verification on 2026-10-31:
 - Integration tests cover concurrent refresh, expiry/revocation/membership gating,
   reset across devices, bootstrap concurrency, throttling, and sanitized DB failures.
 
-Pending: required maintainer PR approval, CI on the implementation branch, merge
-and Actions deployment, and public HTTPS acceptance using dedicated test records.
-No ticket 03 production verification has happened; do not mark Complete yet.
+[PR #3](https://github.com/Caidora/bluddit/pull/3) contains the implementation.
+[CI run 41181281923](https://github.com/Caidora/bluddit/actions/runs/41181281923)
+passed verification for implementation commit `bbeeae2`, including all 26 API/database
+and 18 infrastructure checks and production-container migration/readiness smoke.
+Publication and production deployment were correctly skipped for the PR.
+
+Pending: required maintainer PR approval, merge and Actions deployment, and public
+HTTPS acceptance using dedicated test records. No ticket 03 production verification
+has happened; do not mark Complete yet.
