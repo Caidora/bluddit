@@ -128,6 +128,8 @@ class Deployment:
         release = self.releases / release_id
         if not (release / "manifest.json").is_file():
             raise DeploymentError("Requested release is not present on this host")
+        if not (release / "healthy.json").is_file():
+            raise DeploymentError("Requested release has no successful health-verification record")
         return release
 
     def current(self):
@@ -267,10 +269,11 @@ server_tokens off;
         for attempt in range(12):
             try:
                 for base in ("http://127.0.0.1:18080", f"https://{self.domain}"):
-                    with urllib.request.urlopen(base + "/", timeout=5) as response:
+                    headers = {"User-Agent": "Bluddit-Healthcheck/1.0"}
+                    with urllib.request.urlopen(urllib.request.Request(base + "/", headers=headers), timeout=5) as response:
                         if response.status != 200 or b"Shared progress." not in response.read():
                             raise ValueError("Unexpected web response")
-                    with urllib.request.urlopen(base + "/api/health", timeout=5) as response:
+                    with urllib.request.urlopen(urllib.request.Request(base + "/api/health", headers=headers), timeout=5) as response:
                         if response.status != 200 or json.load(response) != {"status": "ok"}:
                             raise ValueError("Unexpected API response")
                 print("Internal and public HTTPS checks passed", flush=True)
@@ -287,6 +290,7 @@ server_tokens off;
         # Refresh upstream DNS after web/API container replacement.
         self.compose(release, "up", "-d", "--force-recreate", "--no-deps", "--wait", "--wait-timeout", "120", "nginx")
         self.healthy()
+        write_private(release / "healthy.json", json.dumps({"verified_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
         self.activate(release)
         print(f"Healthy release: {release.name}", flush=True)
 

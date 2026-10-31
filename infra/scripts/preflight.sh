@@ -48,7 +48,8 @@ for label, url, kind in [
     ("Public HTTPS API", f"https://{domain}/api/health", "api"),
 ]:
     try:
-        with urllib.request.urlopen(url, timeout=10) as response:
+        request = urllib.request.Request(url, headers={"User-Agent": "Bluddit-Healthcheck/1.0"})
+        with urllib.request.urlopen(request, timeout=10) as response:
             body = response.read()
             valid = json.loads(body) == {"status": "ok"} if kind == "api" else b"Shared progress." in body
             print(f"{label}: HTTP {response.status}; expected response {'present' if valid else 'missing'}")

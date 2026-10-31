@@ -124,7 +124,11 @@ branches is disabled. Operations are serialized and never cancel an active deplo
 
 Release IDs are `<full-commit-SHA>-<workflow-run-ID>`. Workflow summaries contain
 the candidate release and image references; the remote `current` reference only
-advances after internal and public HTTPS checks pass. A failed operation reports a
+advances after internal and public HTTPS checks pass and `healthy.json` records
+successful verification. Rollback refuses releases without that record.
+Health clients identify themselves as `Bluddit-Healthcheck/1.0`; the site's CDN
+rejects Python's default user agent. TLS verification remains enabled.
+A failed operation reports a
 failure without printing private host diagnostics. Review Actions first, then read
 server journal/container logs privately. Do not paste raw server logs into public
 issues or workflow logs; they may contain sensitive details once features arrive.

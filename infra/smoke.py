@@ -5,10 +5,11 @@ import urllib.request
 
 
 def check(base):
-    with urllib.request.urlopen(base + "/", timeout=15) as response:
+    headers = {"User-Agent": "Bluddit-Healthcheck/1.0"}
+    with urllib.request.urlopen(urllib.request.Request(base + "/", headers=headers), timeout=15) as response:
         assert response.status == 200
         assert b"Shared progress." in response.read(), "Skeleton page is missing"
-    with urllib.request.urlopen(base + "/api/health", timeout=15) as response:
+    with urllib.request.urlopen(urllib.request.Request(base + "/api/health", headers=headers), timeout=15) as response:
         assert response.status == 200
         assert json.load(response) == {"status": "ok"}, "Unexpected health response"
     print("Web and API smoke checks passed")
