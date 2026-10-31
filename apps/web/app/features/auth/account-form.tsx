@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { PageTitle, ErrorNotice, Loading } from '@/components/patterns';
+import { PageTitle, ErrorNotice } from '@/components/patterns';
 import { loginOptions, registrationOptions, meOptions } from './queries';
 import { ArrowRight } from 'lucide-react';
 import { AuthFrame } from './auth-frame';
@@ -31,6 +31,7 @@ export function AccountForm({ registering = false }: { registering?: boolean }) 
   }, [registering]);
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (session.isPending) return;
     setError(undefined);
     // HTML constraints handle field validation without discarding entered values.
     if (registering && !displayName.trim()) {
@@ -56,12 +57,6 @@ export function AccountForm({ registering = false }: { registering?: boolean }) 
     if (registering) register.mutate(undefined, callbacks);
     else login.mutate(undefined, callbacks);
   }
-  if (session.isPending)
-    return (
-      <AuthFrame>
-        <Loading label="Checking your session…" />
-      </AuthFrame>
-    );
   if (session.data) return <Navigate to={safeReturn(params.get('returnTo'))} replace />;
   return (
     <AuthFrame>
@@ -141,8 +136,18 @@ export function AccountForm({ registering = false }: { registering?: boolean }) 
             </p>
           )}
         </div>
-        <Button type="submit" className="h-11 w-full rounded-full" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Please wait…' : registering ? 'Request membership' : 'Log in'}
+        <Button
+          type="submit"
+          className="h-11 w-full rounded-full"
+          disabled={session.isPending || mutation.isPending}
+        >
+          {session.isPending
+            ? 'Checking session…'
+            : mutation.isPending
+              ? 'Please wait…'
+              : registering
+                ? 'Request membership'
+                : 'Log in'}
           <ArrowRight />
         </Button>
       </form>

@@ -1,14 +1,14 @@
 import { index, layout, route, type RouteConfig } from '@react-router/dev/routes';
 
 export default [
-  index('routes/entry.tsx'),
   route('login', 'routes/login.tsx'),
   route('register', 'routes/register.tsx'),
   route('pending-approval', 'routes/pending-approval.tsx'),
   route('logout', 'routes/logout.tsx'),
   route('unauthorized', 'routes/unauthorized.tsx'),
-  layout('components/session.tsx', [
-    layout('components/shell.tsx', [
+  layout('components/shell.tsx', [
+    index('routes/entry.tsx'),
+    layout('components/session.tsx', [
       ...['home', 'roster', 'gear', 'events', 'crafting', 'handbook'].map((path) =>
         route(path, `routes/${path}.tsx`)
       ),

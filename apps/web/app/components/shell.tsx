@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck, KeyRound, LogOut } from 'lucide-react';
 import { destinations } from '@/navigation';
 import {
@@ -19,17 +20,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Brand } from './patterns';
-import { useAccount } from './session';
+import { meOptions } from '@/features/auth/queries';
+import type { CurrentAccount } from '@/features/auth/types';
 
-function Navigation() {
-  const account = useAccount();
+function Navigation({ account }: { account: CurrentAccount | null | undefined }) {
   const { setOpenMobile } = useSidebar();
   const items = [
     ...Object.values(destinations),
-    ...(account.permissions.includes('accounts.manage')
+    ...(account?.permissions.includes('accounts.manage')
       ? [{ path: '/admin/accounts', label: 'Membership', icon: ShieldCheck }]
       : []),
-    ...(account.permissions.includes('policy.read')
+    ...(account?.permissions.includes('policy.read')
       ? [{ path: '/admin/permissions', label: 'Permissions', icon: KeyRound }]
       : []),
   ];
@@ -74,7 +75,7 @@ function Navigation() {
   );
 }
 export function Shell() {
-  const account = useAccount();
+  const { data: account } = useQuery(meOptions());
   return (
     <SidebarProvider className="pt-16">
       <header className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between gap-2 border-b bg-background px-3 sm:px-6">
@@ -87,10 +88,14 @@ export function Shell() {
           <span className="hidden text-sm text-muted-foreground sm:block">Bluds guild</span>
         </div>
         <div className="flex min-w-0 items-center gap-2">
-          <span className="hidden max-w-40 truncate text-sm sm:block">{account.display_name}</span>
-          <Badge variant="secondary" className="hidden md:inline-flex">
-            {account.role_name.replaceAll('_', ' ')}
-          </Badge>
+          {account && (
+            <>
+              <span className="hidden max-w-40 truncate text-sm sm:block">{account.display_name}</span>
+              <Badge variant="secondary" className="hidden md:inline-flex">
+                {account.role_name.replaceAll('_', ' ')}
+              </Badge>
+            </>
+          )}
           <Button asChild variant="ghost" size="sm">
             <Link to="/logout">
               <LogOut className="size-4" />
@@ -99,10 +104,10 @@ export function Shell() {
           </Button>
         </div>
       </header>
-      <Navigation />
+      <Navigation account={account} />
       <SidebarInset className="min-w-0">
         <main id="main-content" className="mx-auto w-full max-w-5xl p-4 sm:p-8 lg:p-10">
-          <Outlet context={account} />
+          <Outlet />
         </main>
       </SidebarInset>
     </SidebarProvider>
