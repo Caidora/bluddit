@@ -39,7 +39,7 @@ and same-origin Nginx routing. Selected Psycopg 3 for ticket 02; no migrations y
 
 Added GitHub Actions verification, immutable GHCR image publication/testing,
 serialized SSH deployment, HTTPS host setup, explicit rollback/restart/verify/backup
-operations, and sanitized read-only preflight. Deployment settings are repository
+operations. Deployment settings are repository
 secrets, matching their actual configuration. See `docs/operations.md`.
 
 Local evidence so far: web type checks and production build passed; six API tests

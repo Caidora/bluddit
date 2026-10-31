@@ -64,7 +64,7 @@ and deployment commands are in the [operations runbook](docs/operations.md).
 
 Use the existing Hetzner server. Ticket 01 establishes production hosting, HTTPS, persistent database storage, health checks, and deployment through GitHub Actions.
 
-Pull requests and `main` pushes run basic CI checks. Only `main` can publish images, run production operations, or run Hetzner preflight, including manual workflow runs. Successful `main` builds deploy tested, versioned images to the server. Later tickets extend checks as features are added. Deployments run one at a time, with documented rollback and recovery procedures.
+Pull requests and `main` pushes run basic CI checks. Only `main` can publish images or run production operations, including manual workflow runs. Successful `main` builds deploy tested, versioned images to the server. Later tickets extend checks as features are added. Deployments run one at a time, with documented rollback and recovery procedures.
 
 Each completed implementation ticket is deployed and verified in production using dedicated test records. Local and CI checks run before deployment. There is no separate staging environment planned.
 
@@ -85,8 +85,7 @@ Configure these as **GitHub Actions repository-level secrets**:
 The workflow must read these secrets into its SSH key and known-hosts configuration, restrict file permissions appropriately, and use host-key verification when connecting. Secret values must not be committed or printed in workflow logs.
 
 These settings are secrets rather than Actions variables, matching the configured
-repository. All production changes run through Actions. Run the read-only Hetzner
-preflight before initial deployment; use the main CI workflow for deployment,
+repository. All production changes run through Actions. Use the main CI workflow for deployment,
 rollback, restart, persistence verification, and backup. See the
 [operations runbook](docs/operations.md) for server layout and recovery details.
 
