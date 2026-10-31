@@ -30,8 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
 export function HydrateFallback() {
   return (
-    <main>
-      <p role="status">Loading Bluddit…</p>
+    <main id="main-content">
       <noscript>Enable JavaScript to use Bluddit.</noscript>
     </main>
   );

@@ -86,8 +86,12 @@ they do not replace API authorization.
 
 ## Session errors and local UI state
 
-An initial session check must finish before showing protected content. If it fails
-without a cached account, show a retry screen. A temporary background refresh
+Before hydration the page stays blank (with a JavaScript notice for browsers that
+disable scripts). The shell and general navigation render while the initial session
+check runs; account details, permission-based links, and protected route content wait
+for the account. Login and registration fields also render immediately, with submission
+disabled until the check settles. If the initial check fails without a cached account,
+show a retry notice inside the shell. A temporary background refresh
 failure keeps the existing shell and route mounted and shows a retry notice. This
 preserves forms and confirmation dialogs; do not treat an outage as logout.
 Confirmed session loss clears the cached account, removes protected data, and
