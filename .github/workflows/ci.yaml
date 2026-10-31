@@ -3,7 +3,7 @@ name: CI and production deployment
 on:
   pull_request:
   push:
-    branches: [main, feature/project-foundation]
+    branches: [main]
   workflow_dispatch:
     inputs:
       operation:

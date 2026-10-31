@@ -64,7 +64,7 @@ and deployment commands are in the [operations runbook](docs/operations.md).
 
 Use the existing Hetzner server. Ticket 01 establishes production hosting, HTTPS, persistent database storage, health checks, and deployment through GitHub Actions.
 
-Pull requests and default-branch pushes run basic CI checks. Successful default-branch builds deploy tested, versioned images to the server. Later tickets extend checks as features are added. Deployments run one at a time, with documented rollback and recovery procedures.
+Pull requests and `main` pushes run basic CI checks. Only `main` can publish images, run production operations, or run Hetzner preflight, including manual workflow runs. Successful `main` builds deploy tested, versioned images to the server. Later tickets extend checks as features are added. Deployments run one at a time, with documented rollback and recovery procedures.
 
 Each completed implementation ticket is deployed and verified in production using dedicated test records. Local and CI checks run before deployment. There is no separate staging environment planned.
 

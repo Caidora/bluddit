@@ -3,7 +3,7 @@ name: Hetzner preflight
 on:
   workflow_dispatch:
   push:
-    branches: [feature/project-foundation]
+    branches: [main]
     paths:
       - .github/workflows/preflight.yaml
       - infra/scripts/preflight.sh
@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   inspect:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:

@@ -74,6 +74,9 @@ All production writes happen through **CI and production deployment** in Actions
 Pull requests and `main` pushes run the same host checks as local development and
 smoke-test production containers. Successful `main` builds publish multi-platform
 GHCR images, smoke-test their exact digests, and then deploy those digests.
+Push-triggered runs are restricted to `main`; feature branches run CI through pull
+requests. Image publication, production operations, and Hetzner preflight require
+`main`, including manual workflow runs. Select `main` when dispatching preflight.
 
 Deployment settings are **repository-level Actions secrets**, matching the actual
 repository setup. No GitHub environment or extra registry PAT is required.
