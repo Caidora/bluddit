@@ -200,3 +200,16 @@ and retained sessions after reactivation when the separate revocation fails.
 Existing successful session-revocation, leadership concurrency, and atomic
 succession rollback checks pass. Ruff format/check and `git diff --check` passed.
 Maintainer approval, deployment, and production acceptance remain pending.
+
+### Role transition guard review — 2026-10-31
+
+Removed redundant Guild Master target checks from promotion to Officer and
+demotion to Member. Each route now relies on its existing source-role guard
+(Member for promotion, Officer for demotion), which also rejects GM targets with
+409 Invalid role transition. Updated the HTTP integration expectations; Officer
+callers remain denied by the GM-only endpoint dependency with 403.
+
+Verification: Ruff format/check, `git diff --check`, and `make verify` passed
+(17 API/unit tests, 32 PostgreSQL 17 integration tests, 18 infrastructure tests,
+frontend types/build, and both Compose configurations). Review, deployment,
+and production acceptance remain pending.

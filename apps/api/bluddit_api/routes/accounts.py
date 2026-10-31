@@ -129,8 +129,6 @@ async def promote_to_officer(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
-        raise HTTPException(403, "Guild Master changes require transfer")
     if target["role_name"] != Role.MEMBER:
         raise HTTPException(409, "Invalid role transition")
     result = await repository.promote_to_officer(account_id)
@@ -146,8 +144,6 @@ async def demote_to_member(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
-        raise HTTPException(403, "Guild Master changes require transfer")
     if target["role_name"] != Role.OFFICER:
         raise HTTPException(409, "Invalid role transition")
     result = await repository.demote_to_member(account_id)

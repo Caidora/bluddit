@@ -232,7 +232,7 @@ async def test_role_permissions_protected_gm_and_live_authority(members):
             ).status_code == 403
         assert (
             await client.post(gm + "/" + action, headers=tokens["officer_b"])
-        ).status_code == 403
+        ).status_code == (403 if action == "pass-guild-master" else 409)
     assert (
         await client.post(member + "/promote-to-officer", headers=tokens["officer_b"])
     ).status_code == 200
