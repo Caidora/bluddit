@@ -15,7 +15,7 @@ from bluddit_api.utils.auth import (
     unauthorized,
 )
 from bluddit_api.utils.security import (
-    ACTIVE,
+    MembershipState,
     DUMMY_HASH,
     new_token,
     normalize_username,
@@ -54,7 +54,11 @@ async def login(
             account["password_hash"] if account else DUMMY_HASH,
             body.password.get_secret_value(),
         )
-    if not valid or account is None or account["membership_state"] != ACTIVE:
+    if (
+        not valid
+        or account is None
+        or account["membership_state"] != MembershipState.ACTIVE
+    ):
         raise HTTPException(401, "Invalid username or password")
     refresh, access = new_token(), new_token()
     created = await repository.create_session(

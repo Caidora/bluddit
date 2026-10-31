@@ -118,3 +118,14 @@ ticket 21.
 Verification: `make verify` passed all 26 API/database checks, 18 infrastructure
 checks, frontend types/build, and Compose configuration validation against an
 isolated PostgreSQL database. `git diff --check` passed.
+
+### Membership enum review — 2026-10-31
+
+Replaced the unqualified membership constants with `MembershipState(StrEnum)` for
+pending, active, rejected, and inactive states. Authentication uses
+`MembershipState.ACTIVE`; repositories bind its explicit `.value` through named
+SQL parameters. Stored strings and public API responses remain unchanged.
+
+Verification: `make api-test db-test` passed all 26 API/database checks, including
+membership gating, officer bootstrap, and reset behavior, against an isolated
+PostgreSQL test database. `git diff --check` passed.

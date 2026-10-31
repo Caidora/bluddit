@@ -1,7 +1,7 @@
 """Atomic account bootstrap and password recovery persistence."""
 
 from bluddit_api.database import Database
-from bluddit_api.utils.security import ACTIVE
+from bluddit_api.utils.security import MembershipState
 
 
 class AccountRepository:
@@ -19,7 +19,7 @@ class AccountRepository:
                 WHERE membership_state = %(membership_state)s AND role_name IN ('officer', 'guild_master')
                 LIMIT 1
                 """,
-                {"membership_state": ACTIVE},
+                {"membership_state": MembershipState.ACTIVE.value},
             )
             if await cursor.fetchone():
                 raise ValueError("An active Officer or Guild Master already exists")
@@ -32,7 +32,7 @@ class AccountRepository:
                     "username": username,
                     "display_name": display_name,
                     "password_hash": password_hash,
-                    "membership_state": ACTIVE,
+                    "membership_state": MembershipState.ACTIVE.value,
                 },
             )
 

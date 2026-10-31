@@ -1,6 +1,7 @@
 """Shared credential validation and opaque token primitives."""
 
 import base64
+from enum import StrEnum
 import hashlib
 import re
 import secrets
@@ -8,7 +9,14 @@ import secrets
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
 
-PENDING, ACTIVE, REJECTED, INACTIVE = "pending", "active", "rejected", "inactive"
+
+class MembershipState(StrEnum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    REJECTED = "rejected"
+    INACTIVE = "inactive"
+
+
 PASSWORD_HASHER = PasswordHasher()
 # A dummy hash gives unknown usernames the same expensive verification path.
 DUMMY_HASH = PASSWORD_HASHER.hash(secrets.token_urlsafe(32))

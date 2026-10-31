@@ -3,7 +3,7 @@
 from psycopg.rows import dict_row
 
 from bluddit_api.database import Database
-from bluddit_api.utils.security import ACTIVE
+from bluddit_api.utils.security import MembershipState
 
 
 class AuthRepository:
@@ -35,7 +35,7 @@ class AuthRepository:
                     AND r.expires_at > now() AND r.revoked_at IS NULL
                     AND a.membership_state = %(membership_state)s
                 """,
-                {"token_hash": hashed, "membership_state": ACTIVE},
+                {"token_hash": hashed, "membership_state": MembershipState.ACTIVE.value},
             )
             cursor.row_factory = dict_row
             return await cursor.fetchone()
@@ -58,7 +58,7 @@ class AuthRepository:
                 """,
                 {
                     "account_id": account_id,
-                    "membership_state": ACTIVE,
+                    "membership_state": MembershipState.ACTIVE.value,
                     "password_hash": password_hash,
                 },
             )
@@ -95,7 +95,7 @@ class AuthRepository:
                 {
                     "replacement_hash": replacement_hash,
                     "current_hash": current_hash,
-                    "membership_state": ACTIVE,
+                    "membership_state": MembershipState.ACTIVE.value,
                 },
             )
             session = await cursor.fetchone()
