@@ -20,6 +20,7 @@ services:
     command: [python, -m, bluddit_api.migrate, apply]
     environment: &database_environment
       APP_ENV: ${APP_ENV:-development}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-http://localhost:${LOCAL_PORT:-8080},http://127.0.0.1:${LOCAL_PORT:-8080}}
       PGHOST: db
       PGDATABASE: ${POSTGRES_DB:-bluddit}
       PGUSER: ${POSTGRES_USER:-bluddit}

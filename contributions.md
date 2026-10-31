@@ -55,6 +55,25 @@ user flows manually, including mobile layouts, permissions, and regional times
 where relevant. Documentation-only PRs can use documentation checks; state which
 checks you ran and explain any omissions. CI must still pass before merge.
 
+Use Ruff to format Python code. Before committing or requesting review, run the
+following final checks from the repository root, replacing `<changed-python-paths>`
+with every Python file or directory touched by the change (including tests and
+infrastructure scripts):
+
+```sh
+ruff format <changed-python-paths>
+ruff format --check <changed-python-paths>
+ruff check <changed-python-paths>
+make verify
+git diff --check
+```
+
+Resolve formatting and lint failures before handing off the change. Review any
+automatic fixes; do not suppress findings just to pass. These final checks are
+additional to feature-specific verification. Ruff is a host tool; install it with
+`uv tool install ruff` if unavailable. `make verify` does not currently run Ruff,
+so run the Ruff commands explicitly.
+
 ## Implementation practices
 
 - Follow the existing React Router/React CSR frontend (SPA mode) and FastAPI backend patterns.
@@ -62,6 +81,25 @@ checks you ran and explain any omissions. CI must still pass before merge.
   Include the appropriate lockfile whenever dependencies change.
 - Use explicit parameterized SQL and numbered migrations, with no ORM. Preserve
   existing data and document migration, compatibility, and recovery implications.
+- Bind SQL values by name, using placeholders such as `%(account_id)s` and a
+  separate mapping such as `{"account_id": account_id}`. Do not use positional
+  `%s` placeholders or positional parameter sequences. Let the driver bind values;
+  never interpolate them with Python formatting or f-strings.
+- Name ID columns with the singular table/entity name in snake_case followed by
+  `_id`: `accounts.account_id`, `sessions.session_id`, and
+  `refresh_sessions.refresh_session_id`, never a bare `id`. Foreign-key ID columns
+  use the referenced entity's name, such as `sessions.account_id`. This applies to
+  new schema work; existing bare `id` columns are tracked in
+  [ticket 21](tickets/21-table-prefixed-id-columns.md) and must not be renamed as
+  an unrelated change. Natural and composite keys do not need synthetic ID columns.
+- Keep application SQL and transaction boundaries in repository modules, using
+  one triple-quoted string per query. Routes belong in `bluddit_api/routes`, with
+  shared helpers in `bluddit_api/utils`; routes and account CLI handlers call
+  repositories rather than managing connections. Inject repositories into routes
+  and request dependencies using reusable `Annotated` aliases such as
+  `AuthRepositoryDep`. Define the aliases and their FastAPI `Depends` providers in
+  `bluddit_api/utils/dependencies.py`. Pool lifecycle and migration
+  tooling remain infrastructure concerns.
 - During review, update the existing migration in the same PR if it has not run
   in production; do not add another migration just to revise that PR. Once a
   migration has run in production, preserve its contents and checksum and add a
@@ -96,6 +134,10 @@ changes during review, rerun affected checks and request another review.
 Successful builds on `main` trigger production deployment, so merging has an
 operational effect. All production changes must use the GitHub Actions workflow
 described in the [runbook](docs/operations.md).
+
+Interactive first-officer creation and password resets through the documented
+administrative CLI are the approved exception to Actions-only production changes.
+Use hidden terminal prompts; never put passwords in commands, logs, or PRs.
 
 After merging an implementation ticket, confirm deployment succeeded and verify
 its acceptance criteria in production using dedicated test records, preserving

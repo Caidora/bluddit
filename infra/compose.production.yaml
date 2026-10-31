@@ -20,6 +20,7 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:?AUTH_ALLOWED_ORIGINS is required}
       PGHOST: db
       PGDATABASE: bluddit
       PGUSER: bluddit

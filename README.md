@@ -4,7 +4,10 @@ Bluddit.com is the member website for Bluds, replacing the guild’s shared plan
 
 ## Project status
 
-Ticket 01 is complete, as confirmed by the maintainer. Ticket 02 adds database access and migrations; see its completion notes for verification and deployment status. Release 1 is the current scope.
+Ticket 01 is complete, as confirmed by the maintainer. Ticket 02 adds database
+access and migrations. Ticket 03 adds authentication; its implementation is under
+review and production acceptance remains pending. See the tickets for verification
+and deployment evidence. Release 1 is the current scope.
 
 ## Release 1
 
@@ -38,7 +41,9 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 - Docker containers and Docker Compose for local development and the server.
 - GitHub Actions for CI and deployment.
 
-The application directories include a minimal public page and process-health API.
+The application includes a minimal public page, health/readiness checks, and the
+ticket 03 authentication API and account-recovery CLI. Account screens arrive in
+ticket 05.
 The Python database driver is Psycopg 3, with a shared connection pool, explicit
 SQL transactions, and numbered migrations. There is no ORM.
 

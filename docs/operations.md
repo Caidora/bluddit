@@ -71,6 +71,16 @@ Use the matching URL for the smoke check. Local defaults bind to loopback.
 | Validate Compose configuration | `make config` |
 | All host checks | `make verify` |
 
+Use Ruff for Python formatting and linting (`uv tool install ruff` if needed).
+Before committing or handing off Python changes, run `ruff format` on all changed
+Python files, then run `ruff format --check` and `ruff check` against the same
+paths, including changed tests and infrastructure scripts. Finish with
+`make verify` and `git diff --check`; fix any failures and review automatic edits.
+For a full Python-tree check, the paths are `apps/api infra`. Ruff is not currently
+included in `make verify` or CI; these commands must be run explicitly. See the
+[contribution guide](../contributions.md#set-up-and-verify-locally) for the final
+check sequence. Documentation-only changes still use documentation checks.
+
 The local volume is `bluddit-local_postgres_data`. Never use `down --volumes` on
 data you want to keep. Changing `POSTGRES_PASSWORD` after initialization does not
 rotate the existing PostgreSQL account password.
@@ -209,7 +219,8 @@ server alone cannot protect against loss of the server.
 To diagnose privately with existing SSH access, resolve `DEPLOY_PATH/current` and
 run Docker Compose there with `--env-file release.env -f compose.production.yaml`.
 Read-only `ps` and `logs --tail=100` are useful. Perform production mutations via
-Actions, keeping workflow and release evidence together.
+Actions, keeping workflow and release evidence together. Interactive account
+bootstrap and password recovery are the exception documented below.
 
 ## Database access and migrations
 
@@ -230,12 +241,32 @@ missing local configuration leaves process health working and readiness at 503.
 
 One async pool per API process has 1–5 connections and a three-second acquisition/query
 timeout. API startup opens it without waiting for the database, so process health
-remains available during outages. Use `async def` for FastAPI endpoints and
-`Depends(get_database)` with a short `async with database.transaction() as connection:`
-block around each business operation. Await connection execution and cursor fetch
-operations. Pass values using `%s` placeholders and a separate parameter sequence.
-The block commits on success and rolls back on error. The migration CLI also uses
-async connections. No SQL string interpolation or ORM is used.
+remains available during outages. Routes live in `bluddit_api/routes`; use
+`async def` endpoints with reusable `Annotated` repository dependency aliases
+such as `repository: AuthRepositoryDep` and `repository: HealthRepositoryDep`.
+Providers in `bluddit_api/utils/dependencies.py` construct repositories using `Depends(get_database)`; routes and authentication
+helpers receive repositories instead of database connections. Readiness uses an
+optional repository so an unconfigured database still returns its existing 503 response.
+Application SQL and short `async with database.transaction() as connection:`
+blocks belong in `bluddit_api/repositories`, not routes or account CLI handlers.
+Keep each query in one triple-quoted string and bind values using named
+placeholders such as `%(account_id)s` with a separate mapping such as
+`{"account_id": account_id}`. Do not use positional `%s` placeholders or parameter
+sequences, and do not interpolate values into SQL. Await execution and cursor fetch operations.
+Each business operation commits on success and rolls back on error; refresh
+rotation/access issuance and password reset/session revocation remain atomic.
+Shared authentication configuration, dependencies, and credential/token helpers
+live in `bluddit_api/utils`. Pool lifecycle and migration tooling remain separate
+infrastructure modules. The migration CLI also uses async connections. No SQL
+string interpolation or ORM is used.
+
+ID columns use the singular table/entity name plus `_id`, for example
+`accounts.account_id` and `refresh_sessions.refresh_session_id`, rather than a
+bare `id`. Foreign-key IDs use the referenced entity's prefix, so
+`sessions.account_id` references `accounts.account_id`. Keep natural/composite
+keys where appropriate; this rule does not require adding surrogate IDs.
+Existing bare `id` columns remain unchanged until
+[ticket 21](../tickets/21-table-prefixed-id-columns.md) is implemented.
 
 Migration `0001_accounts_and_sessions.sql` includes role and permission catalogs,
 a role-to-permission mapping, and one required role per account (default `member`).
@@ -280,3 +311,106 @@ and safe rerun, application transaction rollback, and failed migration rollback.
 Container verification also runs migrations twice before checking readiness,
 including the exact published images. There are no per-column or schema snapshot
 tests. Production verification and migration reruns must happen through Actions.
+
+## Authentication and account recovery (ticket 03)
+
+The API uses opaque bearer access tokens lasting 600 seconds and rotating refresh
+cookies lasting 30 days from the latest login/refresh. Only SHA-256 token hashes
+are stored. Each refresh replaces the current refresh hash and creates another
+access token; earlier access tokens retain their normal expiry. No refresh-token
+history or replay-triggered revocation is implemented. A reused/invalid refresh
+token returns 401 without changing the cookie or valid session. Concurrent refresh
+attempts with the same token have exactly one winner. A lost successful response
+may require signing in again.
+
+| Endpoint | Request / result |
+| --- | --- |
+| `POST /api/auth/login` | JSON `username`, `password`; returns `access_token`, `token_type: Bearer`, `expires_in: 600` and sets the refresh cookie |
+| `POST /api/auth/token` | Refresh cookie; rotates it and returns the same access-token shape |
+| `DELETE /api/auth/token` | Revokes the refresh session (invalidating all its access tokens), clears the cookie, returns 204; safe to repeat |
+| `GET /api/auth/me` | `Authorization: Bearer <access_token>`; returns `id`, `username`, `display_name`, `membership_state`, `role_name`, `timezone` |
+
+Only `active` accounts authenticate. `pending`, `rejected`, and `inactive` cannot
+log in, refresh, or use existing access tokens. Request-time account and parent
+session checks enforce immediate logout, deactivation, and password-reset effects.
+New logins are independent sessions; resetting a password invalidates every device.
+Registration/approval/permission management arrive in ticket 04, and account
+screens arrive in ticket 05. No permissions are seeded by account bootstrap.
+
+Set `AUTH_ALLOWED_ORIGINS` to comma-separated exact origins (scheme, hostname,
+and optional port, no trailing slash). All unsafe `/api/` requests require an
+allowed `Origin` plus `X-CSRF-Protection: 1`. Login accepts JSON only and has an
+8 KiB body limit. CORS credentials are not enabled. Local Compose defaults to
+`http://localhost:LOCAL_PORT` and `http://127.0.0.1:LOCAL_PORT`; override the setting
+for a different development origin. A directly run API needs the setting too.
+Production requires explicit HTTPS origins; the deployment writes
+`AUTH_ALLOWED_ORIGINS=https://APP_DOMAIN` into each release's `release.env`.
+Authentication errors and successes use `Cache-Control: no-store`. Do not log
+request bodies, cookies, bearer tokens, or passwords.
+
+The `bluddit_refresh` cookie is HttpOnly, SameSite=Strict, host-only, and scoped to
+`/api/auth/token`. It has explicit 30-day Max-Age/Expires and is Secure in
+production. Invalid refresh requests never clear it. Every unsafe request still
+requires origin/CSRF checks. A bearer token cannot be substituted for the cookie
+on refresh/logout, and the cookie does not authenticate member endpoints.
+
+Login attempts are limited in application memory to 10 per normalized username
+per fixed 15-minute window, including successful attempts. Limits return 429 and
+`Retry-After`. Up to 10,000 active username counters are retained; when full, new
+keys are rejected until space expires. Counter reservation is concurrency-safe;
+expired counters are cleaned as requests arrive. Restart clears counters, and
+limits apply per process. Run one API worker/replica until shared counters are
+introduced. Two password verifications can run concurrently to bound Argon2 memory.
+
+### Interactive administrative CLI
+
+Usernames are trimmed/lowercased and contain 3–32 ASCII letters, digits, or
+underscores. New passwords contain 12–128 characters and are not trimmed. Passwords
+use Argon2id. Both CLI commands prompt twice with hidden input and refuse an echoed
+fallback when no terminal exists. Never supply a password in a command argument,
+environment variable, shell history, or workflow input.
+
+Locally, with migrations applied and the API container running:
+
+```sh
+docker compose exec api python -m bluddit_api.admin create-first-officer --username your_username --display-name 'Your name'
+docker compose exec api python -m bluddit_api.admin reset-password --username your_username
+```
+
+For production, use verified SSH access and change into the resolved
+`DEPLOY_PATH/current` release directory. Use an interactive terminal:
+
+```sh
+sudo docker compose --env-file release.env -f compose.production.yaml exec api python -m bluddit_api.admin create-first-officer --username your_username --display-name 'Your name'
+sudo docker compose --env-file release.env -f compose.production.yaml exec api python -m bluddit_api.admin reset-password --username your_username
+```
+
+Do not add `-T`; hidden prompts need a terminal. These two account operations are
+the approved exception to Actions-only production mutations. Bootstrap is serialized
+and refuses to create another officer while an active Officer or Guild Master
+exists. It never upgrades an existing account. Password reset leaves membership
+and role unchanged and revokes every refresh session atomically with the update.
+Commands report sanitized failures without passwords or database diagnostics.
+
+Migration `0002_refresh_sessions.sql` adds refresh sessions and links access-token
+records to them. It assumes the existing sessions table is empty, as agreed for
+this ticket; it does not rewrite or revoke existing sessions. If that assumption
+is false, the NOT NULL migration fails transactionally for review rather than
+silently modifying records. Existing migration 0001 is unchanged. Rollback to the
+previous health-only API image is compatible with the additive schema; rollback
+does not undo schema or delete records.
+
+### Client contract for ticket 05
+
+Keep access tokens only in JavaScript memory and send them as bearer headers.
+On reload or access expiry, refresh using the HttpOnly cookie. Share a single
+in-flight refresh promise within a tab and coordinate refresh/logout across tabs
+with a same-origin Web Lock. Broadcast new access tokens and logout events through
+`BroadcastChannel`; never persist tokens in localStorage/sessionStorage. Use
+`credentials: same-origin` for cookie operations and supply the origin/CSRF request
+requirements above (browsers set Origin themselves). Retry a failed authenticated
+request at most once after successful refresh. A stale refresh failure must not
+clear a newer session; if another tab won the race, retry refresh once under the
+shared lock with the current cookie. If that also fails, require login. Logout
+must clear the tab's memory and notify other tabs even when its server request
+fails, while making the server failure visible to the user.

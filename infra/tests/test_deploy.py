@@ -18,18 +18,30 @@ class DeploymentTests(unittest.TestCase):
         self.root = Path(self.temp.name) / "app"
         self.payload = Path(self.temp.name) / "payload"
         self.payload.mkdir()
-        self.operation = deploy.Deployment(self.root, self.payload, "example.com", "ops@example.com")
+        self.operation = deploy.Deployment(
+            self.root, self.payload, "example.com", "ops@example.com"
+        )
 
     def test_lock_rejects_overlapping_operations(self):
-        other = deploy.Deployment(self.root, self.payload, "example.com", "ops@example.com")
+        other = deploy.Deployment(
+            self.root, self.payload, "example.com", "ops@example.com"
+        )
         with self.operation.locked():
             with self.assertRaisesRegex(deploy.DeploymentError, "deployment lock"):
                 with other.locked():
                     self.fail("Second operation acquired lock")
 
     def test_invalid_path_and_domain_rejected_before_mutation(self):
-        for path, domain in [("/", "example.com"), ("relative", "example.com"), ("/opt/../etc", "example.com"), ("/opt/bluddit", "https://example.com")]:
-            with self.subTest(path=path, domain=domain), self.assertRaises(deploy.DeploymentError):
+        for path, domain in [
+            ("/", "example.com"),
+            ("relative", "example.com"),
+            ("/opt/../etc", "example.com"),
+            ("/opt/bluddit", "https://example.com"),
+        ]:
+            with (
+                self.subTest(path=path, domain=domain),
+                self.assertRaises(deploy.DeploymentError),
+            ):
                 deploy.Deployment(Path(path), self.payload, domain, "")
 
     def test_pull_failure_does_not_start_services_or_advance_current(self):
@@ -40,14 +52,25 @@ class DeploymentTests(unittest.TestCase):
             if args == ("pull",):
                 raise deploy.DeploymentError("pull failed")
 
-        with patch.object(self.operation, "compose", side_effect=compose), patch.object(self.operation, "activate") as activate:
+        with (
+            patch.object(self.operation, "compose", side_effect=compose),
+            patch.object(self.operation, "activate") as activate,
+        ):
             with self.assertRaisesRegex(deploy.DeploymentError, "pull failed"):
                 self.operation.rollout(self.root / "release")
         self.assertFalse(any(args[0] == "up" for args in calls))
         activate.assert_not_called()
 
     def test_unhealthy_release_does_not_advance_successful_reference(self):
-        with patch.object(self.operation, "compose"), patch.object(self.operation, "healthy", side_effect=deploy.DeploymentError("unhealthy")), patch.object(self.operation, "activate") as activate:
+        with (
+            patch.object(self.operation, "compose"),
+            patch.object(
+                self.operation,
+                "healthy",
+                side_effect=deploy.DeploymentError("unhealthy"),
+            ),
+            patch.object(self.operation, "activate") as activate,
+        ):
             with self.assertRaisesRegex(deploy.DeploymentError, "unhealthy"):
                 self.operation.rollout(self.root / "release")
             activate.assert_not_called()
@@ -61,16 +84,32 @@ class DeploymentTests(unittest.TestCase):
                     calls.append(args)
                     if args[-1] == "status":
                         return b'{"pending": ["0001_accounts_and_sessions.sql"]}'
-                    if failure == "migration" and args == ("run", "--rm", "--no-deps", "-T", "migrate"):
+                    if failure == "migration" and args == (
+                        "run",
+                        "--rm",
+                        "--no-deps",
+                        "-T",
+                        "migrate",
+                    ):
                         raise deploy.DeploymentError("migration failed")
                     return b""
 
-                backup_error = deploy.DeploymentError("backup failed") if failure == "backup" else None
-                with patch.object(self.operation, "compose", side_effect=compose), patch.object(self.operation, "backup", side_effect=backup_error), patch.object(self.operation, "activate") as activate:
+                backup_error = (
+                    deploy.DeploymentError("backup failed")
+                    if failure == "backup"
+                    else None
+                )
+                with (
+                    patch.object(self.operation, "compose", side_effect=compose),
+                    patch.object(self.operation, "backup", side_effect=backup_error),
+                    patch.object(self.operation, "activate") as activate,
+                ):
                     with self.assertRaises(deploy.DeploymentError):
                         self.operation.rollout(self.root / "release", migrate=True)
                     activate.assert_not_called()
-                self.assertFalse(any(args[0] == "up" and args[-1] != "db" for args in calls))
+                self.assertFalse(
+                    any(args[0] == "up" and args[-1] != "db" for args in calls)
+                )
 
     def test_previous_release_and_idempotent_activation(self):
         with self.operation.locked():
@@ -91,7 +130,12 @@ class DeploymentTests(unittest.TestCase):
         new.mkdir()
         (old / "manifest.json").write_text(json.dumps({"DB_IMAGE": "old"}))
         (new / "manifest.json").write_text(json.dumps({"DB_IMAGE": "new"}))
-        with patch.object(self.operation, "authenticate"), patch.object(self.operation, "resolve_release", return_value=old), patch.object(self.operation, "current", return_value=new), patch.object(self.operation, "rollout") as rollout:
+        with (
+            patch.object(self.operation, "authenticate"),
+            patch.object(self.operation, "resolve_release", return_value=old),
+            patch.object(self.operation, "current", return_value=new),
+            patch.object(self.operation, "rollout") as rollout,
+        ):
             with self.assertRaisesRegex(deploy.DeploymentError, "compatibility"):
                 self.operation.execute("rollback", "target")
             rollout.assert_not_called()
@@ -106,7 +150,9 @@ class DeploymentTests(unittest.TestCase):
             release = self.operation.releases / release_id
             release.mkdir()
             (release / "manifest.json").write_text("{}")
-            with self.assertRaisesRegex(deploy.DeploymentError, "no successful health-verification"):
+            with self.assertRaisesRegex(
+                deploy.DeploymentError, "no successful health-verification"
+            ):
                 self.operation.resolve_release(release_id)
 
     def test_command_failures_do_not_leak_output_or_arguments(self):
@@ -119,12 +165,20 @@ class DeploymentTests(unittest.TestCase):
 
     def test_missing_ssh_configuration_names_missing_secret(self):
         script = MODULE.parent / "scripts/ssh-setup.sh"
-        result = subprocess.run(["bash", str(script)], env={"PATH": os.environ["PATH"]}, capture_output=True, text=True)
+        result = subprocess.run(
+            ["bash", str(script)],
+            env={"PATH": os.environ["PATH"]},
+            capture_output=True,
+            text=True,
+        )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Missing repository secret: DEPLOY_HOST", result.stdout)
 
     def prepare_stage(self):
-        manifest = {key: "example/image@sha256:" + "a" * 64 for key in ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE")}
+        manifest = {
+            key: "example/image@sha256:" + "a" * 64
+            for key in ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE")
+        }
         manifest["release_id"] = "a" * 40 + "-123"
         (self.payload / "manifest.json").write_text(json.dumps(manifest))
         (self.payload / "postgres_password").write_text("test-password")
@@ -135,58 +189,116 @@ class DeploymentTests(unittest.TestCase):
         manifest["WEB_IMAGE"] = "example/image:latest"
         (self.payload / "manifest.json").write_text(json.dumps(manifest))
         with self.operation.locked(), patch.object(deploy, "run") as command:
-            with self.assertRaisesRegex(deploy.DeploymentError, "immutable image digest"):
+            with self.assertRaisesRegex(
+                deploy.DeploymentError, "immutable image digest"
+            ):
                 self.operation.stage()
             command.assert_not_called()
 
     def test_successful_stage_prepares_non_root_api_secret(self):
         manifest = self.prepare_stage()
-        for relative in ("compose.production.yaml", "deploy.py", "smoke.py", "nginx/application.conf"):
+        for relative in (
+            "compose.production.yaml",
+            "deploy.py",
+            "smoke.py",
+            "nginx/application.conf",
+        ):
             destination = self.payload / "infra" / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes((MODULE.parent / relative).read_bytes())
-        with self.operation.locked(), patch.object(deploy, "run"), patch.object(os, "chown") as chown:
-            deploy.write_private(self.operation.shared / "postgres_password", "test-password")
+        with (
+            self.operation.locked(),
+            patch.object(deploy, "run"),
+            patch.object(os, "chown") as chown,
+        ):
+            deploy.write_private(
+                self.operation.shared / "postgres_password", "test-password"
+            )
             release = self.operation.stage()
         api_password = self.operation.shared / "api_postgres_password"
         chown.assert_called_once_with(api_password, 10001, 10001)
         self.assertEqual(api_password.read_text(), "test-password")
         self.assertEqual(api_password.stat().st_mode & 0o777, 0o400)
-        self.assertEqual(json.loads((release / "manifest.json").read_text())["release_id"], manifest["release_id"])
+        self.assertEqual(
+            json.loads((release / "manifest.json").read_text())["release_id"],
+            manifest["release_id"],
+        )
+        self.assertIn(
+            "AUTH_ALLOWED_ORIGINS=https://example.com\n",
+            (release / "release.env").read_text(),
+        )
         self.assertFalse((self.root / "current").exists())
 
     def test_database_password_cannot_be_silently_rotated(self):
         self.prepare_stage()
         with self.operation.locked(), patch.object(deploy, "run") as command:
-            (self.operation.shared / "postgres_password").write_text("existing-password")
+            (self.operation.shared / "postgres_password").write_text(
+                "existing-password"
+            )
             with self.assertRaisesRegex(deploy.DeploymentError, "rotation"):
                 self.operation.stage()
-            self.assertEqual((self.operation.shared / "postgres_password").read_text(), "existing-password")
+            self.assertEqual(
+                (self.operation.shared / "postgres_password").read_text(),
+                "existing-password",
+            )
             command.assert_not_called()
 
     def test_unmanaged_database_volume_is_not_adopted(self):
         self.prepare_stage()
-        with self.operation.locked(), patch.object(deploy, "run", return_value=b""), patch.object(subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
-            with self.assertRaisesRegex(deploy.DeploymentError, "Unmanaged database volume"):
+        with (
+            self.operation.locked(),
+            patch.object(deploy, "run", return_value=b""),
+            patch.object(
+                subprocess, "run", return_value=subprocess.CompletedProcess([], 0)
+            ),
+        ):
+            with self.assertRaisesRegex(
+                deploy.DeploymentError, "Unmanaged database volume"
+            ):
                 self.operation.stage()
             self.assertFalse((self.operation.shared / "postgres_password").exists())
 
     def test_unmanaged_compose_project_is_not_replaced(self):
         self.prepare_stage()
-        with self.operation.locked(), patch.object(deploy, "run", return_value=b"existing-container"):
-            with self.assertRaisesRegex(deploy.DeploymentError, "Unmanaged Bluddit Compose project"):
+        with (
+            self.operation.locked(),
+            patch.object(deploy, "run", return_value=b"existing-container"),
+        ):
+            with self.assertRaisesRegex(
+                deploy.DeploymentError, "Unmanaged Bluddit Compose project"
+            ):
                 self.operation.stage()
             self.assertFalse((self.operation.shared / "postgres_password").exists())
 
     def test_verification_rejects_public_database_port(self):
-        inspection = [{"HostConfig": {"PortBindings": {"5432/tcp": [{"HostIp": "0.0.0.0", "HostPort": "5432"}]}}}]
-        with patch.object(self.operation, "compose", return_value=b"db-id"), patch.object(deploy, "run", return_value=json.dumps(inspection).encode()):
-            with self.assertRaisesRegex(deploy.DeploymentError, "unexpectedly published"):
+        inspection = [
+            {
+                "HostConfig": {
+                    "PortBindings": {
+                        "5432/tcp": [{"HostIp": "0.0.0.0", "HostPort": "5432"}]
+                    }
+                }
+            }
+        ]
+        with (
+            patch.object(self.operation, "compose", return_value=b"db-id"),
+            patch.object(deploy, "run", return_value=json.dumps(inspection).encode()),
+        ):
+            with self.assertRaisesRegex(
+                deploy.DeploymentError, "unexpectedly published"
+            ):
                 self.operation.verify_network(self.root)
 
     def test_compose_download_checksum_failure_never_installs_binary(self):
-        with patch.object(deploy.platform, "machine", return_value="x86_64"), patch.object(Path, "exists", return_value=False), patch.object(deploy.urllib.request, "urlopen") as request, patch.object(Path, "write_bytes") as write:
-            request.return_value.__enter__.return_value.read.return_value = b"untrusted download"
+        with (
+            patch.object(deploy.platform, "machine", return_value="x86_64"),
+            patch.object(Path, "exists", return_value=False),
+            patch.object(deploy.urllib.request, "urlopen") as request,
+            patch.object(Path, "write_bytes") as write,
+        ):
+            request.return_value.__enter__.return_value.read.return_value = (
+                b"untrusted download"
+            )
             with self.assertRaisesRegex(deploy.DeploymentError, "checksum"):
                 self.operation.install_compose()
             write.assert_not_called()
