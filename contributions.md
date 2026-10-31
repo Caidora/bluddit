@@ -40,7 +40,9 @@ repository protection.
 
 Follow the [operations runbook](docs/operations.md) for prerequisites, selected
 versions, environment setup, and commands. Copy `.env.example` to `.env` and set a
-local database password before running the stack or Compose checks.
+local database password before running the stack or Compose checks. Host database
+checks also require `TEST_DATABASE_URL` pointing to a disposable PostgreSQL database
+ending in `_test`, with a user allowed to create disposable databases; see the runbook.
 
 ```sh
 make setup   # Install locked frontend and backend dependencies
@@ -60,6 +62,13 @@ checks you ran and explain any omissions. CI must still pass before merge.
   Include the appropriate lockfile whenever dependencies change.
 - Use explicit parameterized SQL and numbered migrations, with no ORM. Preserve
   existing data and document migration, compatibility, and recovery implications.
+- During review, update the existing migration in the same PR if it has not run
+  in production; do not add another migration just to revise that PR. Once a
+  migration has run in production, preserve its contents and checksum and add a
+  new numbered migration for schema changes. Local or CI execution alone does not
+  make a migration immutable. If an edited migration was already applied locally,
+  recreate only the disposable development/test database; never rewrite the ledger
+  to disguise a schema mismatch or reset production/member data.
 - Enforce authorization and validate input at the API. Hiding a UI control is not
   an access-control check. Cover denied access as well as successful requests.
 - Make common workflows usable on a phone and with a keyboard. Use clear labels,

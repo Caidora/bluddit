@@ -1,6 +1,6 @@
 # 01: Project foundation, CI, and Hetzner deployment
 
-Status: In progress — local foundation implemented; CI and production acceptance pending
+Status: Complete — confirmed by maintainer on 2026-10-31
 
 Dependencies: None.
 
@@ -69,3 +69,13 @@ Pending: full GitHub CI, exact published-image checks, actual HTTPS deployment,
 second-version deployment, production restart/persistence and backup/restore checks,
 and image rollback. Record final workflow links, release manifests, and deployed
 version once externally verified; do not mark Complete before these pass.
+
+### Maintainer completion confirmation — 2026-10-31
+
+The maintainer confirmed ticket 01 is complete and authorized updating these docs.
+This supersedes the pending status above; earlier notes are retained as historical
+verification records. Successful production deployment workflow runs include
+[41171440169](https://github.com/Caidora/bluddit/actions/runs/41171440169) and
+[41172292916](https://github.com/Caidora/bluddit/actions/runs/41172292916).
+Other acceptance results are maintainer-confirmed, not independently rerun during
+ticket 02. Ticket 02 updates the deployment smoke check to match the CSR shell.

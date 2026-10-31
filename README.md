@@ -4,7 +4,7 @@ Bluddit.com is the member website for Bluds, replacing the guild’s shared plan
 
 ## Project status
 
-The application foundation is being implemented in ticket 01. Release 1 is the current scope. See the ticket's completion notes for actual verification and deployment status.
+Ticket 01 is complete, as confirmed by the maintainer. Ticket 02 adds database access and migrations; see its completion notes for verification and deployment status. Release 1 is the current scope.
 
 ## Release 1
 
@@ -39,8 +39,8 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 - GitHub Actions for CI and deployment.
 
 The application directories include a minimal public page and process-health API.
-The Python database driver is Psycopg 3; ticket 02 adds explicit SQL access and
-migrations. There is no ORM.
+The Python database driver is Psycopg 3, with a shared connection pool, explicit
+SQL transactions, and numbered migrations. There is no ORM.
 
 ## Local development
 
@@ -56,8 +56,9 @@ Open [the local website](http://localhost:8080). Use `make dev` for source reloa
 `make down` to stop while preserving data, and `make logs` for local logs.
 If port 8080 is occupied, set `LOCAL_PORT` in `.env`.
 
-For host checks, install Node 24, Python 3.13, and uv 0.6.13, then run `make setup`
-and `make verify`. Exact selected dependencies, configuration, and all development
+For host checks, install Node 24, Python 3.13, and uv 0.6.13, then run `make setup`.
+Set `TEST_DATABASE_URL` to a disposable PostgreSQL database ending in `_test` before
+running `make verify`; the test user needs permission to create disposable databases. Exact selected dependencies, configuration, and all development
 and deployment commands are in the [operations runbook](docs/operations.md).
 
 ## CI and Hetzner deployment

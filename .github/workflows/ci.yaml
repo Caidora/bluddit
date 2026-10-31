@@ -23,6 +23,17 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    services:
+      postgres-test:
+        image: postgres:17-bookworm
+        env:
+          POSTGRES_DB: bluddit_test
+          POSTGRES_USER: bluddit_test
+          POSTGRES_PASSWORD: ci-test-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bluddit_test -d bluddit_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,12 +50,17 @@ jobs:
       - name: Verify web, API, infrastructure, and configuration
         env:
           POSTGRES_PASSWORD: ci-disposable-password
+          TEST_DATABASE_URL: postgresql://bluddit_test:ci-test-password@localhost:5432/bluddit_test
         run: make verify
       - name: Build and smoke-test production containers
         env:
           POSTGRES_PASSWORD: ci-disposable-password
         run: |
-          docker compose up --build -d --wait --wait-timeout 180
+          docker compose build
+          docker compose up -d --wait db
+          docker compose run --rm --no-deps -T migrate
+          docker compose run --rm --no-deps -T migrate
+          docker compose up -d --wait --wait-timeout 180
           python3 infra/smoke.py http://127.0.0.1:8080
           docker compose exec -T api id -u | grep -qx 10001
           docker compose exec -T web id -u | grep -qx 1000
@@ -120,7 +136,12 @@ jobs:
         run: |
           mkdir -p "$APP_ROOT/shared"
           printf '%s' 'ci-disposable-password' > "$APP_ROOT/shared/postgres_password"
+          cp "$APP_ROOT/shared/postgres_password" "$APP_ROOT/shared/api_postgres_password"
+          chmod 0444 "$APP_ROOT/shared/api_postgres_password"
           docker volume create bluddit_postgres_data
+          docker compose -f infra/compose.production.yaml up -d --wait db
+          docker compose -f infra/compose.production.yaml run --rm --no-deps -T migrate
+          docker compose -f infra/compose.production.yaml run --rm --no-deps -T migrate
           docker compose -f infra/compose.production.yaml up -d --wait --wait-timeout 180
           python3 infra/smoke.py http://127.0.0.1:18080
       - name: Save public image verification metadata
@@ -193,7 +214,12 @@ jobs:
         run: bash infra/scripts/run-remote.sh "$OPERATION" "$TARGET_RELEASE"
       - name: Verify public HTTPS from outside the host
         if: env.OPERATION != 'backup'
-        run: python3 infra/smoke.py "https://$APP_DOMAIN"
+        run: |
+          if [[ "$OPERATION" == rollback ]]; then
+            python3 infra/smoke.py "https://$APP_DOMAIN" --process-only
+          else
+            python3 infra/smoke.py "https://$APP_DOMAIN"
+          fi
       - name: Record operation result
         if: always()
         env:

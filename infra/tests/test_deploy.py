@@ -1,4 +1,3 @@
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -7,10 +6,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from infra import deploy
+
 MODULE = Path(__file__).resolve().parents[1] / "deploy.py"
-spec = importlib.util.spec_from_file_location("deploy", MODULE)
-deploy = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(deploy)
 
 
 class DeploymentTests(unittest.TestCase):
@@ -53,6 +51,26 @@ class DeploymentTests(unittest.TestCase):
             with self.assertRaisesRegex(deploy.DeploymentError, "unhealthy"):
                 self.operation.rollout(self.root / "release")
             activate.assert_not_called()
+
+    def test_backup_or_migration_failure_prevents_application_rollout(self):
+        for failure in ("backup", "migration"):
+            with self.subTest(failure=failure):
+                calls = []
+
+                def compose(release, *args, **kwargs):
+                    calls.append(args)
+                    if args[-1] == "status":
+                        return b'{"pending": ["0001_accounts_and_sessions.sql"]}'
+                    if failure == "migration" and args == ("run", "--rm", "--no-deps", "-T", "migrate"):
+                        raise deploy.DeploymentError("migration failed")
+                    return b""
+
+                backup_error = deploy.DeploymentError("backup failed") if failure == "backup" else None
+                with patch.object(self.operation, "compose", side_effect=compose), patch.object(self.operation, "backup", side_effect=backup_error), patch.object(self.operation, "activate") as activate:
+                    with self.assertRaises(deploy.DeploymentError):
+                        self.operation.rollout(self.root / "release", migrate=True)
+                    activate.assert_not_called()
+                self.assertFalse(any(args[0] == "up" and args[-1] != "db" for args in calls))
 
     def test_previous_release_and_idempotent_activation(self):
         with self.operation.locked():
