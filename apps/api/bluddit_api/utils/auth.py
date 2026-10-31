@@ -119,7 +119,3 @@ async def current_account(request: Request, repository: AuthRepositoryDep) -> Ac
     if account is None:
         raise unauthorized()
     return account
-
-
-def access_response(token: str):
-    return {"access_token": token, "token_type": "Bearer", "expires_in": ACCESS_SECONDS}

@@ -12,6 +12,11 @@ from bluddit_api.repositories.membership import (
     GuildMasterChangedError,
 )
 from bluddit_api.utils.security import MembershipState
+from bluddit_api.routes.responses import (
+    AccountListResponse,
+    AccountResponse,
+    PermissionsResponse,
+)
 
 router = APIRouter(prefix="/api")
 AccountId = Annotated[int, Path(gt=0)]
@@ -29,25 +34,29 @@ async def accounts(
     membership_state: MembershipState | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-):
+) -> AccountListResponse:
     items = await repository.list_accounts(membership_state, limit, offset)
-    return {"accounts": items, "limit": limit, "offset": offset}
+    return AccountListResponse(
+        accounts=[AccountResponse.model_validate(item) for item in items],
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/accounts/{account_id}")
 async def account(
     account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     result = await repository.get_account(account_id)
     if result is None:
         raise HTTPException(404, "Account not found")
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/approve")
 async def approve(
     account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -58,7 +67,7 @@ async def approve(
     result = await repository.approve(account_id)
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/reject")
@@ -67,7 +76,7 @@ async def reject(
     actor: AccountManager,
     repository: MembershipRepositoryDep,
     auth_repository: AuthRepositoryDep,
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -79,7 +88,7 @@ async def reject(
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
     await auth_repository.revoke_account_sessions(account_id)
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/deactivate")
@@ -88,7 +97,7 @@ async def deactivate(
     actor: AccountManager,
     repository: MembershipRepositoryDep,
     auth_repository: AuthRepositoryDep,
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -100,13 +109,13 @@ async def deactivate(
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
     await auth_repository.revoke_account_sessions(account_id)
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/activate")
 async def activate(
     account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -120,13 +129,13 @@ async def activate(
     result = await repository.activate(account_id)
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/promote-to-officer")
 async def promote_to_officer(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -135,13 +144,13 @@ async def promote_to_officer(
     result = await repository.promote_to_officer(account_id)
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/demote-to-member")
 async def demote_to_member(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -150,13 +159,13 @@ async def demote_to_member(
     result = await repository.demote_to_member(account_id)
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.post("/accounts/{account_id}/pass-guild-master")
 async def pass_guild_master(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
@@ -172,12 +181,12 @@ async def pass_guild_master(
         ) from None
     if result is None:
         raise HTTPException(409, "Account update conflicts with current state")
-    return result
+    return AccountResponse.model_validate(result)
 
 
 @router.get("/permissions")
-async def permissions(actor: PolicyReader):
-    return {
-        "permissions": sorted(Permission),
-        "roles": {role: sorted(values) for role, values in RolePolicy.mappings.items()},
-    }
+async def permissions(actor: PolicyReader) -> PermissionsResponse:
+    return PermissionsResponse(
+        permissions=sorted(Permission),
+        roles={role: sorted(values) for role, values in RolePolicy.mappings.items()},
+    )
