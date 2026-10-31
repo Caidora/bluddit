@@ -4,7 +4,7 @@ Bluddit.com is the member website for Bluds, replacing the guild’s shared plan
 
 ## Project status
 
-The initial planning documentation and 20 implementation tickets are in place. Application implementation has not started. Release 1 is the current scope.
+The application foundation is being implemented in ticket 01. Release 1 is the current scope. See the ticket's completion notes for actual verification and deployment status.
 
 ## Release 1
 
@@ -37,7 +37,27 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 - Docker containers and Docker Compose for local development and the server.
 - GitHub Actions for CI and deployment.
 
-These application directories will be created in ticket 01. Dependency versions and development commands will be documented during implementation. The high-level plan’s `ngpsql` wording needs resolving when selecting the Python backend’s PostgreSQL driver.
+The application directories include a minimal public page and process-health API.
+The Python database driver is Psycopg 3; ticket 02 adds explicit SQL access and
+migrations. There is no ORM.
+
+## Local development
+
+With Docker and Compose v2 installed:
+
+```sh
+cp .env.example .env
+# Set POSTGRES_PASSWORD in .env.
+make up
+```
+
+Open [the local website](http://localhost:8080). Use `make dev` for source reload,
+`make down` to stop while preserving data, and `make logs` for local logs.
+If port 8080 is occupied, set `LOCAL_PORT` in `.env`.
+
+For host checks, install Node 24, Python 3.13, and uv 0.6.13, then run `make setup`
+and `make verify`. Exact selected dependencies, configuration, and all development
+and deployment commands are in the [operations runbook](docs/operations.md).
 
 ## CI and Hetzner deployment
 
@@ -55,10 +75,19 @@ Configure these as **GitHub Actions repository-level secrets**:
 | --- | --- |
 | `SSH_KEY` | The complete SSH private key used by the deployment workflow to connect to the Hetzner server, preserving its header, footer, and line breaks. The corresponding public key must be authorized for the deployment user on that server. |
 | `SSH_KNOWN_HOSTS` | The contents of the SSH `known_hosts` file containing the verified host-key entry or entries for the Hetzner SSH hostname/IP and port used by the workflow. |
+| `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT` | Confirmed Hetzner SSH address, account, and numeric port. |
+| `DEPLOY_PATH` | Absolute application directory on the server. |
+| `APP_DOMAIN` | Confirmed application hostname without a scheme or path. |
+| `TLS_EMAIL` | Let's Encrypt certificate contact. |
+| `POSTGRES_PASSWORD` | Production database password; no line breaks. |
 
 The workflow must read these secrets into its SSH key and known-hosts configuration, restrict file permissions appropriately, and use host-key verification when connecting. Secret values must not be committed or printed in workflow logs.
 
-The server address, SSH user/port, application directory, domain/DNS, and any other required deployment configuration must be confirmed from the existing setup during ticket 01. The two secrets provide the authentication key and trusted host identities; they do not establish those connection settings by themselves.
+These settings are secrets rather than Actions variables, matching the configured
+repository. All production changes run through Actions. Run the read-only Hetzner
+preflight before initial deployment; use the main CI workflow for deployment,
+rollback, restart, persistence verification, and backup. See the
+[operations runbook](docs/operations.md) for server layout and recovery details.
 
 ## Spreadsheet transition
 

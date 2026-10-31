@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+.react-router/
+build/
+.env
+.env.*
+!.env.example
+*.pyc
+.DS_Store
+.coverage
+backups/
+

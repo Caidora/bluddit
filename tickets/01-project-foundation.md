@@ -1,6 +1,6 @@
 # 01: Project foundation, CI, and Hetzner deployment
 
-Status: Not started
+Status: In progress — local foundation implemented; CI and production acceptance pending
 
 Dependencies: None.
 
@@ -33,4 +33,26 @@ Implement meaningful checks for the behavior and failure paths above. Record com
 
 ## Completion notes
 
-To be filled in by the implementing AI: changes, migrations/configuration, verification evidence, and any unresolved acceptance items.
+Implemented React Router framework SSR web skeleton, FastAPI process health, locked
+dependencies, production Dockerfiles, local/reload Compose, private PostgreSQL,
+and same-origin Nginx routing. Selected Psycopg 3 for ticket 02; no migrations yet.
+
+Added GitHub Actions verification, immutable GHCR image publication/testing,
+serialized SSH deployment, HTTPS host setup, explicit rollback/restart/verify/backup
+operations, and sanitized read-only preflight. Deployment settings are repository
+secrets, matching their actual configuration. See `docs/operations.md`.
+
+Local evidence so far: web type checks and production build passed; six API tests
+passed; nine deployment failure-path tests passed; base/development Compose config
+validation passed; production containers built and local web/API smoke passed at
+port 18081 (8080 was already occupied). Docker Desktop was started for verification.
+
+Hetzner readiness workflow run 41170139868 passed after DEPLOY_PATH was corrected.
+It reported Docker/Compose setup required, HTTP/HTTPS ports available, application
+directory creation required, DNS resolving, and host setup permissions available.
+This readiness check does not establish a successful deployment or DNS target match.
+
+Pending: full GitHub CI, exact published-image checks, actual HTTPS deployment,
+second-version deployment, production restart/persistence and backup/restore checks,
+and image rollback. Record final workflow links, release manifests, and deployed
+version once externally verified; do not mark Complete before these pass.

@@ -32,3 +32,6 @@ jobs:
         run: |
           printf -v remote 'bash -s -- %q %q' "$DEPLOY_PATH" "$APP_DOMAIN"
           ssh -F "$RUNNER_TEMP/ssh/config" production "$remote" < infra/scripts/preflight.sh
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/ssh"

@@ -1,0 +1,52 @@
+name: bluddit
+services:
+  db:
+    image: ${DB_IMAGE:?DB_IMAGE is required}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bluddit
+      POSTGRES_DB: bluddit
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U bluddit -d bluddit']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+  api:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    image: ${WEB_IMAGE:?WEB_IMAGE is required}
+    restart: unless-stopped
+  nginx:
+    image: ${NGINX_IMAGE:?NGINX_IMAGE is required}
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:18080:80
+    volumes:
+      - ./nginx/application.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/api/health && wget -q -O /dev/null http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+secrets:
+  postgres_password:
+    file: ${APP_ROOT:?APP_ROOT is required}/shared/postgres_password
+volumes:
+  postgres_data:
+    external: true
+    name: bluddit_postgres_data

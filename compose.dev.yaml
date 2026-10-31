@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      target: development
+    volumes:
+      - ./apps/api/bluddit_api:/app/bluddit_api
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  web:
+    build:
+      target: development
+    volumes:
+      - ./apps/web/app:/app/app
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10

@@ -14,7 +14,7 @@ Tech stack:
 - fastapi
 - nginx
 - postgres
-- ngpsql with sql commands no orm
+- Psycopg 3 (Python PostgreSQL driver), explicit parameterized SQL commands, no ORM
 - CI/CD with github actions
 - Authentication/ authorization with sessions.
 - dockerise it all
