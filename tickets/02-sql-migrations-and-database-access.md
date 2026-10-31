@@ -1,6 +1,6 @@
 # 02: SQL migrations and database access
 
-Status: In progress — implementation and local verification complete; PR/CI and production acceptance pending
+Status: In progress — implementation and CI verification complete; maintainer review and production acceptance pending
 
 Dependencies: Ticket 01.
 
@@ -65,6 +65,12 @@ Local verification on 2026-10-31:
   No per-column, index, or application-schema snapshot tests were added.
 
 Ticket 01 completion was confirmed by the maintainer during this implementation.
-Pending: required maintainer PR review, GitHub CI, merge and deployment through
-Actions, and production migration/readiness/rerun evidence with deployed image
-references. Do not mark Complete before production acceptance is recorded.
+[PR #1](https://github.com/Caidora/bluddit/pull/1) contains the implementation.
+[CI run 41174129177](https://github.com/Caidora/bluddit/actions/runs/41174129177)
+passed verification for implementation commit `647c8d8`, including disposable
+PostgreSQL checks and production-container migration/rerun/readiness smoke checks.
+Image publication and deployment were correctly skipped for the PR.
+
+Pending: required maintainer PR review, merge and deployment through Actions, and
+production migration/readiness/rerun evidence with deployed image references.
+Do not mark Complete before production acceptance is recorded.
