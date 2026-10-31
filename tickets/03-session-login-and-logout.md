@@ -106,3 +106,15 @@ API/database checks (including concurrent refresh and multi-device reset), all 1
 infrastructure checks, and base/reload Compose validation using an isolated
 PostgreSQL test container. `git diff --check` passed. PR review and production
 acceptance remain pending.
+
+### Named SQL bindings — 2026-10-31
+
+Converted all existing parameterized queries in the account/auth repositories,
+migration runner, and database tests to named `%(name)s` placeholders with mapping
+arguments. No positional SQL placeholders remain in Python sources. Schema and
+migration SQL files are unchanged; bare ID column renames remain deferred to
+ticket 21.
+
+Verification: `make verify` passed all 26 API/database checks, 18 infrastructure
+checks, frontend types/build, and Compose configuration validation against an
+isolated PostgreSQL database. `git diff --check` passed.

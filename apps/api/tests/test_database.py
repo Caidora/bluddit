@@ -27,7 +27,7 @@ async def test_failed_transaction_leaves_no_partial_writes(database):
         await connection.execute("CREATE TABLE transaction_probe (value text)")
     with pytest.raises(RuntimeError, match="abort"):
         async with database.transaction() as connection:
-            await connection.execute("INSERT INTO transaction_probe VALUES (%s)", ("a user's input",))
+            await connection.execute("INSERT INTO transaction_probe VALUES (%(value)s)", {"value": "a user's input"})
             raise RuntimeError("abort operation")
     async with database.transaction() as connection:
         cursor = await connection.execute("SELECT count(*) FROM transaction_probe")

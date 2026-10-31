@@ -62,11 +62,11 @@ async def test_login_rotation_stale_tokens_logout_and_independent_sessions(auth)
         current_refresh = client.cookies.get(COOKIE_NAME)
         assert current_refresh != old_refresh and current != original
         async with database.transaction() as connection:
-            cursor = await connection.execute("SELECT token_hash, expires_at FROM refresh_sessions WHERE token_hash = %s", (token_hash(current_refresh),))
+            cursor = await connection.execute("SELECT token_hash, expires_at FROM refresh_sessions WHERE token_hash = %(token_hash)s", {"token_hash": token_hash(current_refresh)})
             stored, expiry = await cursor.fetchone()
             assert bytes(stored) == token_hash(current_refresh)
             assert (expiry - datetime.now(timezone.utc)).days >= 29
-            cursor = await connection.execute("SELECT token_hash FROM sessions WHERE token_hash = %s", (token_hash(current),))
+            cursor = await connection.execute("SELECT token_hash FROM sessions WHERE token_hash = %(token_hash)s", {"token_hash": token_hash(current)})
             assert bytes((await cursor.fetchone())[0]) == token_hash(current)
         async with client_for(app) as stale:
             stale.cookies.set(COOKIE_NAME, old_refresh, path=TOKEN_PATH)
@@ -108,7 +108,7 @@ async def test_credentials_membership_throttle_and_password_reset(auth):
         assert (await login(client, "unknown")).json() == expected
         for state in ("pending", "rejected", "inactive"):
             async with database.transaction() as connection:
-                await connection.execute("UPDATE accounts SET membership_state = %s", (state,))
+                await connection.execute("UPDATE accounts SET membership_state = %(membership_state)s", {"membership_state": state})
             assert (await login(client)).json() == expected
         async with database.transaction() as connection:
             await connection.execute("UPDATE accounts SET membership_state = 'active'")

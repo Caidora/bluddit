@@ -13,30 +13,31 @@ class AccountRepository:
             cursor = await connection.execute(
                 """
                 SELECT 1 FROM accounts
-                WHERE membership_state = %s AND role_name IN ('officer', 'guild_master')
+                WHERE membership_state = %(membership_state)s AND role_name IN ('officer', 'guild_master')
                 LIMIT 1
                 """,
-                (ACTIVE,),
+                {"membership_state": ACTIVE},
             )
             if await cursor.fetchone():
                 raise ValueError("An active Officer or Guild Master already exists")
             await connection.execute(
                 """
                 INSERT INTO accounts (username, display_name, password_hash, membership_state, role_name)
-                VALUES (%s, %s, %s, %s, 'officer')
+                VALUES (%(username)s, %(display_name)s, %(password_hash)s, %(membership_state)s, 'officer')
                 """,
-                (username, display_name, password_hash, ACTIVE),
+                {"username": username, "display_name": display_name,
+                 "password_hash": password_hash, "membership_state": ACTIVE},
             )
 
     async def reset_password(self, username: str, password_hash: str):
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
-                UPDATE accounts SET password_hash = %s, updated_at = now()
-                WHERE lower(username) = %s
+                UPDATE accounts SET password_hash = %(password_hash)s, updated_at = now()
+                WHERE lower(username) = %(username)s
                 RETURNING id
                 """,
-                (password_hash, username),
+                {"password_hash": password_hash, "username": username},
             )
             account = await cursor.fetchone()
             if account is None:
@@ -44,7 +45,7 @@ class AccountRepository:
             await connection.execute(
                 """
                 UPDATE refresh_sessions SET revoked_at = now()
-                WHERE account_id = %s AND revoked_at IS NULL
+                WHERE account_id = %(account_id)s AND revoked_at IS NULL
                 """,
-                (account[0],),
+                {"account_id": account[0]},
             )

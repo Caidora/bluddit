@@ -58,7 +58,7 @@ async def pending_migrations(connection, migrations: list[Migration]) -> list[Mi
 async def run_migrations(connection, *, apply: bool = False, directory: Path = MIGRATIONS) -> dict:
     migrations = load_migrations(directory)
     # A session lock spans all per-migration transactions, including ledger creation.
-    await connection.execute("SELECT pg_advisory_lock(%s)", (LOCK_ID,))
+    await connection.execute("""SELECT pg_advisory_lock(%(lock_id)s)""", {"lock_id": LOCK_ID})
     try:
         pending = await pending_migrations(connection, migrations)
         result = {"pending": [m.filename for m in pending], "applied": []}
@@ -75,14 +75,18 @@ async def run_migrations(connection, *, apply: bool = False, directory: Path = M
                     """)
                     await connection.execute(migration.sql)
                     await connection.execute(
-                        "INSERT INTO public.schema_migrations (version, filename, checksum) VALUES (%s, %s, %s)",
-                        (migration.version, migration.filename, migration.checksum),
+                        """
+                        INSERT INTO public.schema_migrations (version, filename, checksum)
+                        VALUES (%(version)s, %(filename)s, %(checksum)s)
+                        """,
+                        {"version": migration.version, "filename": migration.filename,
+                         "checksum": migration.checksum},
                     )
                 result["applied"].append(migration.filename)
             result["pending"] = []
         return result
     finally:
-        await connection.execute("SELECT pg_advisory_unlock(%s)", (LOCK_ID,))
+        await connection.execute("""SELECT pg_advisory_unlock(%(lock_id)s)""", {"lock_id": LOCK_ID})
 
 
 async def main():
