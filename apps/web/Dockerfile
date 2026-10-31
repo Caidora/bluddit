@@ -1,4 +1,6 @@
-FROM node:24-bookworm-slim AS development
+# The browser bundle is architecture independent. Build it on BuildKit's native
+# platform so multi-arch image publishing doesn't run Vite under QEMU per target.
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS development
 WORKDIR /app
 COPY apps/web/package*.json ./
 RUN npm ci
