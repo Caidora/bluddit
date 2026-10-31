@@ -132,6 +132,7 @@ jobs:
           API_IMAGE: ${{ steps.refs.outputs.api }}
           DB_IMAGE: ${{ steps.refs.outputs.db }}
           NGINX_IMAGE: ${{ steps.refs.outputs.nginx }}
+          AUTH_ALLOWED_ORIGINS: https://ci.bluddit.invalid
           APP_ROOT: ${{ runner.temp }}/candidate
         run: |
           mkdir -p "$APP_ROOT/shared"
@@ -171,6 +172,7 @@ jobs:
           API_IMAGE: ${{ steps.refs.outputs.api }}
           DB_IMAGE: ${{ steps.refs.outputs.db }}
           NGINX_IMAGE: ${{ steps.refs.outputs.nginx }}
+          AUTH_ALLOWED_ORIGINS: https://ci.bluddit.invalid
           APP_ROOT: ${{ runner.temp }}/candidate
         run: docker compose -f infra/compose.production.yaml down
 

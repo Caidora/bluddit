@@ -153,6 +153,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertEqual(api_password.read_text(), "test-password")
         self.assertEqual(api_password.stat().st_mode & 0o777, 0o400)
         self.assertEqual(json.loads((release / "manifest.json").read_text())["release_id"], manifest["release_id"])
+        self.assertIn("AUTH_ALLOWED_ORIGINS=https://example.com\n", (release / "release.env").read_text())
         self.assertFalse((self.root / "current").exists())
 
     def test_database_password_cannot_be_silently_rotated(self):

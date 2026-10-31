@@ -97,6 +97,10 @@ Successful builds on `main` trigger production deployment, so merging has an
 operational effect. All production changes must use the GitHub Actions workflow
 described in the [runbook](docs/operations.md).
 
+Interactive first-officer creation and password resets through the documented
+administrative CLI are the approved exception to Actions-only production changes.
+Use hidden terminal prompts; never put passwords in commands, logs, or PRs.
+
 After merging an implementation ticket, confirm deployment succeeded and verify
 its acceptance criteria in production using dedicated test records, preserving
 member data. Record implementation details, verification evidence, deployed

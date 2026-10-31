@@ -202,7 +202,8 @@ class Deployment:
         shutil.copy2(self.payload / "infra/smoke.py", release / "smoke.py")
         write_private(release / "manifest.json", json.dumps(manifest, indent=2) + "\n")
         write_private(release / "release.env", "".join(f"{key}={manifest[key]}\n" for key in
-                      ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE", "APP_ROOT")))
+                      ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE", "APP_ROOT"))
+                      + f"AUTH_ALLOWED_ORIGINS=https://{self.domain}\n")
         return release
 
     def configure_ingress(self):
