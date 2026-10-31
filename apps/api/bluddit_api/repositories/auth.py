@@ -35,7 +35,10 @@ class AuthRepository:
                     AND r.expires_at > now() AND r.revoked_at IS NULL
                     AND a.membership_state = %(membership_state)s
                 """,
-                {"token_hash": hashed, "membership_state": MembershipState.ACTIVE.value},
+                {
+                    "token_hash": hashed,
+                    "membership_state": MembershipState.ACTIVE.value,
+                },
             )
             cursor.row_factory = dict_row
             return await cursor.fetchone()

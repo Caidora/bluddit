@@ -15,6 +15,9 @@ Follow-up tickets.
 - Bind SQL values with named placeholders (`%(account_id)s`) and a separate mapping;
   do not use positional `%s` placeholders or interpolate values into SQL.
 - Run appropriate checks and record evidence. Update the ticket status to Complete only when its acceptance conditions are met; otherwise record exactly what remains.
+- Use `ruff format` for changed Python files. Final checks include
+  `ruff format --check`, `ruff check`, `make verify`, and `git diff --check`;
+  see the contribution guide for command scope and documentation-only exceptions.
 - Keep CI current as features and tests are added. After checks pass, deploy each completed implementation ticket through the workflow established in ticket 01 and verify its behavior on the Hetzner production instance using dedicated test records. Preserve member data and record the deployed version and results.
 - Record migration/configuration changes and update setup instructions as needed. Preserve existing member data and user edits.
 

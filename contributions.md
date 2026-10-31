@@ -55,6 +55,25 @@ user flows manually, including mobile layouts, permissions, and regional times
 where relevant. Documentation-only PRs can use documentation checks; state which
 checks you ran and explain any omissions. CI must still pass before merge.
 
+Use Ruff to format Python code. Before committing or requesting review, run the
+following final checks from the repository root, replacing `<changed-python-paths>`
+with every Python file or directory touched by the change (including tests and
+infrastructure scripts):
+
+```sh
+ruff format <changed-python-paths>
+ruff format --check <changed-python-paths>
+ruff check <changed-python-paths>
+make verify
+git diff --check
+```
+
+Resolve formatting and lint failures before handing off the change. Review any
+automatic fixes; do not suppress findings just to pass. These final checks are
+additional to feature-specific verification. Ruff is a host tool; install it with
+`uv tool install ruff` if unavailable. `make verify` does not currently run Ruff,
+so run the Ruff commands explicitly.
+
 ## Implementation practices
 
 - Follow the existing React Router/React CSR frontend (SPA mode) and FastAPI backend patterns.

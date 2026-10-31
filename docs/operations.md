@@ -71,6 +71,16 @@ Use the matching URL for the smoke check. Local defaults bind to loopback.
 | Validate Compose configuration | `make config` |
 | All host checks | `make verify` |
 
+Use Ruff for Python formatting and linting (`uv tool install ruff` if needed).
+Before committing or handing off Python changes, run `ruff format` on all changed
+Python files, then run `ruff format --check` and `ruff check` against the same
+paths, including changed tests and infrastructure scripts. Finish with
+`make verify` and `git diff --check`; fix any failures and review automatic edits.
+For a full Python-tree check, the paths are `apps/api infra`. Ruff is not currently
+included in `make verify` or CI; these commands must be run explicitly. See the
+[contribution guide](../contributions.md#set-up-and-verify-locally) for the final
+check sequence. Documentation-only changes still use documentation checks.
+
 The local volume is `bluddit-local_postgres_data`. Never use `down --volumes` on
 data you want to keep. Changing `POSTGRES_PASSWORD` after initialization does not
 rotate the existing PostgreSQL account password.
