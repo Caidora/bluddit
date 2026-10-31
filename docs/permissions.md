@@ -21,7 +21,9 @@ Members have `guild.read`, `profile.edit_own`, `characters.edit_own`,
 `wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
 and add `accounts.manage`, `policy.read`, and `shared_records.correct`. The GM has
 the same permission set as Officers. Role changes additionally require the actor
-to be the current GM, checked at both the route and within the write transaction.
+to be the current GM. The API checks this at the endpoint gate and rechecks it
+against locked records within the shared write transaction. The repository only
+executes SQL; it does not decide authorization or validate business transitions.
 
 ## Contract for later feature tickets
 

@@ -9,8 +9,8 @@ import pytest
 from bluddit_api.main import create_app
 from bluddit_api.migrate import MIGRATIONS, run_migrations
 from bluddit_api.repositories.auth import AuthRepository
-from bluddit_api.repositories.membership import MembershipError, MembershipRepository
-from bluddit_api.utils.permissions import Role
+from bluddit_api.repositories.membership import MembershipRepository
+from bluddit_api.utils.auth import current_account
 from bluddit_api.utils.security import PASSWORD_HASHER, new_token, token_hash
 
 pytestmark = pytest.mark.anyio
@@ -57,7 +57,7 @@ async def members(database, monkeypatch):
             headers=HEADERS,
         ) as client,
     ):
-        yield client, database, MembershipRepository(database), users, tokens
+        yield client, database, app, users, tokens
 
 
 async def test_registration_approval_login_and_account_reads(members):
@@ -123,17 +123,15 @@ async def test_registration_approval_login_and_account_reads(members):
 
 
 async def test_duplicate_registration_is_atomic(members):
-    client, _, repository, _, _ = members
+    client, _, _, _, _ = members
+    body = {"username": "duplicate", "display_name": "A", "password": PASSWORD}
     results = await asyncio.gather(
-        repository.register("duplicate", "A", ENCODED),
-        repository.register("duplicate", "B", ENCODED),
-        return_exceptions=True,
+        client.post("/api/auth/register", json=body),
+        client.post("/api/auth/register", json={**body, "display_name": "B"}),
     )
-    assert sum(isinstance(r, dict) for r in results) == 1
-    assert sum(isinstance(r, MembershipError) and r.status == 409 for r in results) == 1
+    assert sorted(response.status_code for response in results) == [201, 409]
     response = await client.post(
-        "/api/auth/register",
-        json={"username": " DUPLICATE ", "display_name": "C", "password": PASSWORD},
+        "/api/auth/register", json={**body, "username": " DUPLICATE "}
     )
     assert response.status_code == 409 and PASSWORD not in response.text
 
@@ -292,60 +290,111 @@ async def test_role_permissions_protected_gm_and_live_authority(members):
 
 
 async def test_concurrent_deactivations_and_last_officer(members):
-    _, _, repository, users, _ = members
+    client, database, _, users, tokens = members
     results = await asyncio.gather(
-        repository.deactivate(users["officer_a"], users["officer_b"]),
-        repository.deactivate(users["officer_b"], users["officer_a"]),
-        return_exceptions=True,
+        client.post(
+            f"/api/accounts/{users['officer_b']}/deactivate",
+            headers=tokens["officer_a"],
+        ),
+        client.post(
+            f"/api/accounts/{users['officer_a']}/deactivate",
+            headers=tokens["officer_b"],
+        ),
     )
-    assert sum(isinstance(r, dict) for r in results) == 1
-    assert sum(isinstance(r, MembershipError) and r.status == 403 for r in results) == 1
-    for name in ("officer_a", "officer_b"):
-        account = await repository.get_account(users[name])
-        if account["membership_state"] == "active":
-            with pytest.raises(MembershipError) as denied:
-                await repository.deactivate(users[name], users[name])
-            assert denied.value.status == 409
+    assert sum(response.status_code == 200 for response in results) == 1
+    assert sum(response.status_code in {401, 403} for response in results) == 1
+    async with database.transaction() as connection:
+        repository = MembershipRepository(connection)
+        assert await repository.count_active_administrators() == 1
+        accounts = await repository.list_accounts("active", 100, 0)
+    survivor = next(
+        account for account in accounts if account["role_name"] == "officer"
+    )
+    assert (
+        await client.post(
+            f"/api/accounts/{survivor['id']}/deactivate",
+            headers=tokens[survivor["username"]],
+        )
+    ).status_code == 409
 
 
 @pytest.mark.parametrize(
-    "method", ["promote_to_officer", "demote_to_member", "pass_guild_master"]
+    "action", ["promote-to-officer", "demote-to-member", "pass-guild-master"]
 )
-async def test_repository_role_changes_require_gm_even_for_officers(members, method):
-    _, _, repository, users, _ = members
-    with pytest.raises(MembershipError) as denied:
-        await getattr(repository, method)(users["officer_a"], users["member"])
-    assert denied.value.status == 403
+async def test_role_changes_recheck_stale_gm_authority(members, action):
+    client, _, app, users, tokens = members
+    # Simulate the route's auth lookup completing before a concurrent GM transfer.
+    # The locked SQL read must override this stale snapshot's apparent authority.
+    app.dependency_overrides[current_account] = lambda: {
+        "id": users["officer_a"],
+        "role_name": "guild_master",
+        "membership_state": "active",
+    }
+    response = await client.post(
+        f"/api/accounts/{users['member']}/{action}", headers=tokens["officer_a"]
+    )
+    assert response.status_code == 403
 
 
 async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatch):
-    _, database, repository, users, _ = members
+    client, database, _, users, tokens = members
     actor = users["officer_a"]
     async with database.transaction() as connection:
         await connection.execute(
             """UPDATE accounts SET role_name = 'guild_master' WHERE id = %(id)s""",
             {"id": actor},
         )
-    original = repository._set_role
+    original = MembershipRepository.pass_guild_master
 
-    async def fail_promotion(connection, account_id, role):
-        if role == Role.GUILD_MASTER:
-            raise RuntimeError("injected failure")
-        await original(connection, account_id, role)
+    async def fail_promotion(self, account_id):
+        raise psycopg.OperationalError("injected failure")
 
-    monkeypatch.setattr(repository, "_set_role", fail_promotion)
-    with pytest.raises(RuntimeError, match="injected failure"):
-        await repository.pass_guild_master(actor, users["member"])
-    assert (await repository.get_account(actor))["role_name"] == "guild_master"
-    assert (await repository.get_account(users["member"]))["role_name"] == "member"
-    monkeypatch.setattr(repository, "_set_role", original)
-    results = await asyncio.gather(
-        repository.pass_guild_master(actor, users["member"]),
-        repository.pass_guild_master(actor, users["officer_b"]),
-        return_exceptions=True,
+    monkeypatch.setattr(MembershipRepository, "pass_guild_master", fail_promotion)
+    response = await client.post(
+        f"/api/accounts/{users['member']}/pass-guild-master",
+        headers=tokens["officer_a"],
     )
-    assert sum(isinstance(r, dict) for r in results) == 1
-    assert sum(isinstance(r, MembershipError) and r.status == 403 for r in results) == 1
+    assert response.status_code == 503 and "injected failure" not in response.text
+    async with database.transaction() as connection:
+        repository = MembershipRepository(connection)
+        assert (await repository.get_account(actor))["role_name"] == "guild_master"
+        assert (await repository.get_account(users["member"]))["role_name"] == "member"
+    monkeypatch.setattr(MembershipRepository, "pass_guild_master", original)
+    results = await asyncio.gather(
+        client.post(
+            f"/api/accounts/{users['member']}/pass-guild-master",
+            headers=tokens["officer_a"],
+        ),
+        client.post(
+            f"/api/accounts/{users['officer_b']}/pass-guild-master",
+            headers=tokens["officer_a"],
+        ),
+    )
+    assert sorted(response.status_code for response in results) == [200, 403]
+    async with database.transaction() as connection:
+        accounts = await MembershipRepository(connection).list_accounts(None, 100, 0)
+    assert sum(account["role_name"] == "guild_master" for account in accounts) == 1
+
+
+async def test_deactivation_rolls_back_if_session_revocation_fails(
+    members, monkeypatch
+):
+    client, database, _, users, tokens = members
+
+    async def fail_revocation(self, account_id):
+        raise psycopg.OperationalError("injected failure")
+
+    monkeypatch.setattr(MembershipRepository, "revoke_sessions", fail_revocation)
+    response = await client.post(
+        f"/api/accounts/{users['member']}/deactivate", headers=tokens["officer_a"]
+    )
+    assert response.status_code == 503 and "injected failure" not in response.text
+    assert (
+        await client.get("/api/auth/me", headers=tokens["member"])
+    ).status_code == 200
+    async with database.transaction() as connection:
+        account = await MembershipRepository(connection).get_account(users["member"])
+    assert account["membership_state"] == "active"
 
 
 async def test_upgrade_preserves_accounts_and_removes_permission_tables(

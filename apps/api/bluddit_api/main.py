@@ -13,7 +13,6 @@ from bluddit_api.migrate import load_migrations
 from bluddit_api.routes.auth import router as auth_router
 from bluddit_api.routes.health import router as health_router
 from bluddit_api.routes.accounts import router as accounts_router
-from bluddit_api.repositories.membership import MembershipError
 from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 
 
@@ -53,10 +52,6 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(health_router)
     app.include_router(accounts_router)
-
-    @app.exception_handler(MembershipError)
-    async def membership_error(request, error):
-        return JSONResponse(status_code=error.status, content={"detail": error.detail})
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):

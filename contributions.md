@@ -92,10 +92,16 @@ so run the Ruff commands explicitly.
   new schema work; existing bare `id` columns are tracked in
   [ticket 21](tickets/21-table-prefixed-id-columns.md) and must not be renamed as
   an unrelated change. Natural and composite keys do not need synthetic ID columns.
-- Keep application SQL and transaction boundaries in repository modules, using
-  one triple-quoted string per query. Routes belong in `bluddit_api/routes`, with
-  shared helpers in `bluddit_api/utils`; routes and account CLI handlers call
-  repositories rather than managing connections. Inject repositories into routes
+- Keep application SQL in repository methods, using one triple-quoted string per
+  query. New repository methods represent SQL operations; keep authorization,
+  membership transitions, and other business rules in API handlers/helpers, with
+  a service layer only when needed. Avoid static methods in new repositories.
+  Existing repository patterns outside the current ticket can remain unchanged.
+  Routes belong in `bluddit_api/routes`, with shared helpers in `bluddit_api/utils`.
+  For multi-query membership actions, the dependency provider opens one transaction
+  and yields a connection-bound repository with `Depends(..., scope="function")`,
+  committing before success is sent and rolling back on errors. Handlers compose
+  repository calls without executing SQL or managing connections. Inject repositories into routes
   and request dependencies using reusable `Annotated` aliases such as
   `AuthRepositoryDep`. Define the aliases and their FastAPI `Depends` providers in
   `bluddit_api/utils/dependencies.py`. Pool lifecycle and migration

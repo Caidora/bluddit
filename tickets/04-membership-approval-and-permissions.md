@@ -111,3 +111,28 @@ Verification: Ruff format/check, `git diff --check`, and `make verify` passed:
 16 API/unit tests, 31 PostgreSQL 17 integration tests, 18 infrastructure tests,
 frontend types/build, and both Compose configurations. Production verification
 and maintainer approval remain pending.
+
+### Repository responsibility review — 2026-10-31
+
+Removed business rules, static methods, and transaction orchestration from the
+ticket 04 membership repository. Each method now executes a distinct SQL
+operation on a supplied connection. Account API handlers/helpers perform
+membership/role validation, missing-account handling, leadership safeguards,
+and authorization rechecks after locking. Registration maps duplicate usernames
+to HTTP 409 in its API handler. No API or migration changes.
+
+The repository dependency opens one transaction for the endpoint, using
+`scope="function"` so commit finishes before success is sent. Membership changes
+and session revocation, and both GM succession writes, remain atomic. Existing
+repositories/static helpers from earlier tickets are unchanged, as requested.
+Updated contributor/runbook guidance and the permission matrix to document this
+boundary; no service layer is introduced.
+
+Verification: `make verify` passed 17 API/unit tests, 32 PostgreSQL 17 integration
+tests, 18 infrastructure tests, frontend types/build, and both Compose
+configurations. Tests now exercise the API flows for concurrent administration
+and duplicate registration, stale GM authority under lock, GM-transfer rollback,
+deactivation rollback when revocation fails, and commit failure returning 503
+instead of a false registration success. Ruff format/check and
+`git diff --check` passed. Maintainer approval and production acceptance remain
+pending.

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from psycopg.errors import UniqueViolation
 from starlette.concurrency import run_in_threadpool
 
 from bluddit_api.utils.dependencies import AuthRepositoryDep, MembershipRepositoryDep
@@ -67,7 +68,10 @@ async def register(
         encoded = await run_in_threadpool(
             PASSWORD_HASHER.hash, body.password.get_secret_value()
         )
-    return await repository.register(body.username, body.display_name, encoded)
+    try:
+        return await repository.register(body.username, body.display_name, encoded)
+    except UniqueViolation:
+        raise HTTPException(409, "Username unavailable") from None
 
 
 @router.post("/login")

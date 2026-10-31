@@ -1,11 +1,15 @@
 """Policy and registration boundary checks that do not require PostgreSQL."""
 
 from unittest.mock import AsyncMock
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 import pytest
+import psycopg
 
 from bluddit_api.main import create_app
+from bluddit_api.database import get_database
 from bluddit_api.utils.dependencies import get_membership_repository
 from bluddit_api.utils.permissions import Permission, Role, RolePolicy
 
@@ -88,3 +92,36 @@ def test_registration_guards_validation_normalization_and_throttle(monkeypatch):
         )
         assert response.status_code == 429 and "retry-after" in response.headers
         assert repository.register.await_count == 1
+
+
+def test_registration_commit_failure_cannot_return_success(monkeypatch):
+    monkeypatch.delenv("PGHOST", raising=False)
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
+    connection = AsyncMock()
+    connection.execute.return_value.fetchone.return_value = {
+        "membership_state": "pending"
+    }
+
+    @asynccontextmanager
+    async def transaction():
+        yield connection
+        raise psycopg.OperationalError("private-commit-failure")
+
+    app = create_app()
+    app.dependency_overrides[get_database] = lambda: SimpleNamespace(
+        transaction=transaction
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/auth/register",
+            headers={"Origin": "http://testserver", "X-CSRF-Protection": "1"},
+            json={
+                "username": "member",
+                "display_name": "Member",
+                "password": "private-password",
+            },
+        )
+    assert response.status_code == 503
+    assert "private-commit-failure" not in response.text
+    assert response.headers["cache-control"] == "no-store"

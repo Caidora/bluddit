@@ -1,6 +1,7 @@
 """Repository providers for request dependency injection."""
 
 from typing import Annotated
+from collections.abc import AsyncIterator
 
 from fastapi import Depends
 
@@ -28,10 +29,12 @@ HealthRepositoryDep = Annotated[HealthRepository | None, Depends(get_health_repo
 
 async def get_membership_repository(
     database: Database = Depends(get_database),
-) -> MembershipRepository:
-    return MembershipRepository(database)
+) -> AsyncIterator[MembershipRepository]:
+    # One transaction for every SQL operation composed by the membership route.
+    async with database.transaction() as connection:
+        yield MembershipRepository(connection)
 
 
 MembershipRepositoryDep = Annotated[
-    MembershipRepository, Depends(get_membership_repository)
+    MembershipRepository, Depends(get_membership_repository, scope="function")
 ]

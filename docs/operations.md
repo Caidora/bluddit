@@ -247,8 +247,15 @@ such as `repository: AuthRepositoryDep` and `repository: HealthRepositoryDep`.
 Providers in `bluddit_api/utils/dependencies.py` construct repositories using `Depends(get_database)`; routes and authentication
 helpers receive repositories instead of database connections. Readiness uses an
 optional repository so an unconfigured database still returns its existing 503 response.
-Application SQL and short `async with database.transaction() as connection:`
-blocks belong in `bluddit_api/repositories`, not routes or account CLI handlers.
+Application SQL belongs in `bluddit_api/repositories`. New membership repository
+methods each execute SQL and return results; authorization, membership transitions,
+and leadership rules live in the account API handlers/helpers. The membership
+provider opens one `database.transaction()` and yields a connection-bound
+repository using `Depends(..., scope="function")`. All SQL calls composed by the
+handler share that transaction; it commits before sending success and rolls back
+on exceptions. Handlers do not execute SQL or manage connections. Existing
+auth/account-recovery repositories retain their transaction boundaries and static
+helpers; this ticket does not refactor those unrelated operations.
 Keep each query in one triple-quoted string and bind values using named
 placeholders such as `%(account_id)s` with a separate mapping such as
 `{"account_id": account_id}`. Do not use positional `%s` placeholders or parameter
@@ -395,8 +402,9 @@ Role changes take effect on existing bearer tokens at the next request. The old
 generic role-update and GM-update PUT endpoints are not available.
 
 Membership mutations and first-officer bootstrap share advisory transaction lock
-730003. Mutations lock affected accounts in ID order and recheck caller authority
-before changing data. The last active administrator cannot be deactivated; a GM
+730003. The API calls repository lock queries in ID order, then rechecks caller
+authority and validates transitions against those locked records before changing
+data. The last active administrator cannot be deactivated; a GM
 cannot be deactivated or demoted outside transfer.
 
 ### First Guild Master and migration compatibility
