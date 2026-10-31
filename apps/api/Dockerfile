@@ -19,7 +19,7 @@ COPY --from=dependencies /app/.venv ./.venv
 COPY apps/api/bluddit_api ./bluddit_api
 USER app
 EXPOSE 8000
-HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=5 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=5 CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/ready', timeout=3)"
 ARG GIT_SHA=local
 LABEL org.opencontainers.image.source="https://github.com/Caidora/bluddit" org.opencontainers.image.revision=$GIT_SHA
 CMD ["uvicorn", "bluddit_api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

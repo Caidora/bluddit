@@ -11,9 +11,10 @@ Production serves the static frontend with stable Alpine Nginx as UID 1000,
 alongside the Python API, PostgreSQL 17 Bookworm, and the Nginx reverse proxy. Production resolves and tests immutable image digests.
 Base-image patch updates are picked up by a new build, not by restarting a release.
 
-The Python PostgreSQL driver decision is **Psycopg 3**, using explicit parameterized
-SQL and no ORM. Ticket 02 adds the dependency, pooling, readiness, and migrations.
-There are no application migrations or authentication features in ticket 01.
+The Python PostgreSQL driver is **Psycopg 3.3.6** (binary distribution), with
+**psycopg-pool 3.3.3**, explicit parameterized SQL, and no ORM. Numbered SQL
+migrations introduce accounts, permission grants, and sessions. Authentication
+endpoints remain in ticket 03.
 
 ## Frontend rendering
 
@@ -44,10 +45,15 @@ python3 infra/smoke.py http://127.0.0.1:8080
 
 This builds production containers; host Node and uv are not required to run them.
 The web page and `/api/health` share the same origin. PostgreSQL has no published
-port. API docs are disabled; the public API exposes only process health.
+port. API docs are disabled. `/api/health` checks process liveness; `/api/ready`
+checks database access and required migrations without exposing configuration.
 
 For source reload, use `make dev`. To run checks on the host, install Node 24,
-Python 3.13, uv 0.6.13, and Make, then `make setup` and `make verify`.
+Python 3.13, uv 0.6.13, and Make, then `make setup`. Before `make verify`, set
+`TEST_DATABASE_URL` to a disposable PostgreSQL database ending in `_test`. The
+connection user must be able to create databases; each test creates and removes
+only its own randomly named test database. No application credentials are used as
+a fallback. `make api-test` runs the database-independent API checks separately.
 Use `nvm use` if your default Node version is different. If port 8080 is occupied,
 set `LOCAL_PORT=18081` in `.env`, or prefix the command with that variable.
 Use the matching URL for the smoke check. Local defaults bind to loopback.
@@ -60,7 +66,8 @@ Use the matching URL for the smoke check. Local defaults bind to loopback.
 | Stop containers, preserve data | `make down` |
 | Follow local logs | `make logs` |
 | Web types / production build | `make web-check` / `make web-build` |
-| API / deployment tests | `make api-test` / `make infra-test` |
+| API / database / deployment tests | `make api-test` / `make db-test` / `make infra-test` |
+| Apply migrations / inspect status | `make migrate` / `make migration-status` |
 | Validate Compose configuration | `make config` |
 | All host checks | `make verify` |
 
@@ -120,6 +127,7 @@ The root-owned layout below is relative to `DEPLOY_PATH`:
 ```text
 deploy.lock                  # host-side nonblocking operation lock
 shared/postgres_password     # mode 0600, never in a release or backup artifact
+shared/api_postgres_password # same credential, mode 0400, owned by UID/GID 10001
 releases/<commit>-<run-id>/   # immutable manifest, Compose config, Nginx config, tool
 current -> releases/...      # latest release that passed health checks
 previous -> releases/...     # preceding successful release
@@ -173,10 +181,13 @@ are rebuilt and no database volume is removed. Keep GHCR versions referenced by
 release manifests; no image or volume pruning is automated.
 
 Automatic image rollback refuses a different PostgreSQL image digest. Database
-compatibility requires review, even when the major version is unchanged. Once
-ticket 02 introduces migrations, run them exactly once before application rollout,
-back up existing data before schema changes, and assess schema compatibility
-before selecting an older application image. Image rollback never undoes schema.
+compatibility requires review, even when the major version is unchanged.
+Image rollback never undoes schema. The initial account/session migration is
+additive and compatible with the foundation image. Later migrations require
+explicit compatibility assessment before selecting an older application image.
+Rollback and restart never invoke the migration service. The host verifies the
+selected release's health contract; an older foundation release does not require
+the new readiness endpoint.
 
 ## Database backup
 
@@ -199,3 +210,54 @@ To diagnose privately with existing SSH access, resolve `DEPLOY_PATH/current` an
 run Docker Compose there with `--env-file release.env -f compose.production.yaml`.
 Read-only `ps` and `logs --tail=100` are useful. Perform production mutations via
 Actions, keeping workflow and release evidence together.
+
+## Database access and migrations
+
+Local Compose starts the database, runs a one-shot `migrate` service, and starts
+the API only after migration success. Both `make up` and `make dev` use this order.
+`make migrate` builds and applies pending migrations; `make migration-status`
+reports pending migrations against a running local database. Neither command
+removes database volumes. Restarting an API process does not migrate the database.
+
+The API and migration CLI use `PGHOST`, `PGPORT` (default 5432), `PGDATABASE`,
+`PGUSER`, and exactly one of `PGPASSWORD` or `PGPASSWORD_FILE`. Compose maps local
+`POSTGRES_*` settings to these values. Production uses mounted secrets: the
+existing database password remains root-owned, and a separate identical file is
+owned by UID/GID 10001 so the non-root API can read it. File-backed Compose secrets
+retain host ownership. Do not print connection settings or dump Compose's expanded
+configuration into logs. Production requires database configuration at startup;
+missing local configuration leaves process health working and readiness at 503.
+
+One pool per API process has 1–5 connections and a three-second acquisition/query
+timeout. API startup opens it without waiting for the database, so process health
+remains available during outages. Database-backed handlers should be synchronous:
+use `Depends(get_database)` and a short `with database.transaction() as connection:`
+block around each business operation. Pass values using `%s` placeholders and a
+separate parameter sequence. The block commits on success and rolls back on error.
+No SQL string interpolation or ORM is used.
+
+Migrations live inside the API package as `NNNN_description.sql`, starting at
+`0001`. Use `python -m bluddit_api.migrate status` or `apply` from the API environment.
+The runner holds a database advisory lock, verifies the ledger's filenames and
+SHA-256 checksums, and executes each pending migration and its ledger entry in
+one transaction. Only forward, transactional SQL is supported: do not include
+transaction-control statements or operations requiring autocommit. Add a new
+migration to change an applied schema; never edit an applied migration. A failed
+migration rolls back its own changes; earlier successful migrations remain applied.
+A retry safely skips successful migrations. Unexpected migration history or edited
+applied files blocks deployment until the compatible files/image are restored.
+
+Production deployment pulls the candidate image, ensures PostgreSQL is healthy,
+checks migration status, and creates/restores a backup before any pending schema
+changes (including the initial migration). It then runs the profiled migration
+service once before application rollout. Backup or migration failure prevents API
+replacement and leaves the successful release reference unchanged. Readiness and
+internal/public smoke checks must pass before recording the candidate as healthy.
+Do not restore a backup automatically over member changes after a rollout failure;
+use a compatible image rollback and assess schema recovery separately.
+
+CI uses disposable PostgreSQL for three behavioral checks: migration/readiness
+and safe rerun, application transaction rollback, and failed migration rollback.
+Container verification also runs migrations twice before checking readiness,
+including the exact published images. There are no per-column or schema snapshot
+tests. Production verification and migration reruns must happen through Actions.

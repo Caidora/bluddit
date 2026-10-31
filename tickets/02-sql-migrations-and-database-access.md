@@ -1,6 +1,6 @@
 # 02: SQL migrations and database access
 
-Status: Not started
+Status: In progress — implementation and local verification complete; PR/CI and production acceptance pending
 
 Dependencies: Ticket 01.
 
@@ -22,8 +22,49 @@ Establish explicit SQL migrations and a shared database access pattern.
 
 Migrations run against an empty database and rerunning the migration command is safe. Failed migrations roll back. Integration tests prove transactions roll back on failure and user input is passed as SQL parameters.
 
-Implement meaningful checks for the behavior and failure paths above. Record commands run and results in the completion notes; do not claim external verification that has not happened.
+Keep verification focused on migration/readiness behavior, rollback on failures, and
+deployment ordering. Do not add per-column assertions or schema snapshot tests.
+Record commands run and results; do not claim external verification that has not happened.
 
 ## Completion notes
 
-To be filled in by the implementing AI: changes, migrations/configuration, verification evidence, and any unresolved acceptance items.
+Implemented Psycopg 3.3.6 (binary) with psycopg-pool 3.3.3, a lifespan-managed
+synchronous pool, explicit transaction contexts and a shared FastAPI dependency.
+SQL values are supplied separately as parameters. No ORM or authentication routes.
+
+Added `0001_accounts_and_sessions.sql` for accounts, capabilities, and hashed-token
+sessions. Usernames are unique regardless of case. Added forward-only `status` /
+`apply` CLI commands, a checksum ledger, advisory locking, and transactional
+migration execution. Applied migrations cannot be edited silently.
+
+Added database-independent liveness and database/migration readiness at
+`/api/health` and `/api/ready`. Local/reload Compose waits for a one-shot migration
+service. Production uses a separately invoked, profiled migration service before
+application rollout, after a backup and restore check when migrations are pending.
+Restart and image rollback do not migrate. API credentials use a separate copy of
+the existing secret readable by non-root UID 10001. Updated CI, Make commands,
+setup docs, and runbook. Deployment smoke checks now match the CSR page and include
+readiness; foundation-image rollback uses its earlier health contract.
+
+Local verification on 2026-10-31:
+
+- `make verify` with a dedicated disposable `TEST_DATABASE_URL`: passed web type
+  checks/build, 6 existing API checks, 3 focused database checks, 17 infrastructure
+  checks, and base/reload Compose configuration validation.
+- `actionlint .github/workflows/ci.yaml` and `git diff --check`: passed.
+- Isolated production container build: passed, including frontend types/build.
+- Isolated local Compose startup: applied migration before API startup; migration
+  `status` and repeat `apply` both reported no pending/applied changes. SPA/API
+  smoke checks passed on port 18082. Docker Desktop rejected the repository config
+  bind mount, so the smoke run used an identical copy in `/private/tmp`.
+- Isolated production Compose verification: mounted API secret was readable as
+  UID 10001, migration application/rerun succeeded, and SPA/API/readiness smoke
+  passed on port 18083 using dedicated containers and a disposable volume.
+- Focused checks prove transaction rollback, failed migration rollback/retry, and
+  backup/migration failure preventing application rollout and release activation.
+  No per-column, index, or application-schema snapshot tests were added.
+
+Ticket 01 completion was confirmed by the maintainer during this implementation.
+Pending: required maintainer PR review, GitHub CI, merge and deployment through
+Actions, and production migration/readiness/rerun evidence with deployed image
+references. Do not mark Complete before production acceptance is recorded.

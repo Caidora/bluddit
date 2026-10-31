@@ -40,7 +40,9 @@ repository protection.
 
 Follow the [operations runbook](docs/operations.md) for prerequisites, selected
 versions, environment setup, and commands. Copy `.env.example` to `.env` and set a
-local database password before running the stack or Compose checks.
+local database password before running the stack or Compose checks. Host database
+checks also require `TEST_DATABASE_URL` pointing to a disposable PostgreSQL database
+ending in `_test`, with a user allowed to create disposable databases; see the runbook.
 
 ```sh
 make setup   # Install locked frontend and backend dependencies

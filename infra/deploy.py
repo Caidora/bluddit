@@ -19,6 +19,11 @@ import time
 import urllib.request
 import uuid
 
+if __package__:
+    from .smoke import check as smoke_check
+else:
+    from smoke import check as smoke_check
+
 
 class DeploymentError(RuntimeError):
     pass
@@ -178,6 +183,11 @@ class Deployment:
                 raise DeploymentError("Unmanaged database volume exists; review ownership before adoption")
             password_path.write_bytes(password)
             password_path.chmod(0o600)
+        # File-backed Compose secrets retain host ownership: the API runs as UID 10001.
+        api_password = self.shared / "api_postgres_password"
+        write_private(api_password, password.decode())
+        api_password.chown(10001, 10001)
+        api_password.chmod(0o400)
         run(["docker", "volume", "create", "bluddit_postgres_data"])
         release = self.releases / release_id
         if release.exists():
@@ -189,6 +199,7 @@ class Deployment:
         shutil.copy2(self.payload / "infra/compose.production.yaml", release)
         shutil.copytree(self.payload / "infra/nginx", release / "nginx")
         shutil.copy2(self.payload / "infra/deploy.py", release / "deploy.py")
+        shutil.copy2(self.payload / "infra/smoke.py", release / "smoke.py")
         write_private(release / "manifest.json", json.dumps(manifest, indent=2) + "\n")
         write_private(release / "release.env", "".join(f"{key}={manifest[key]}\n" for key in
                       ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE", "APP_ROOT")))
@@ -265,31 +276,38 @@ server_tokens off;
                 config.write_bytes(before)
             raise
 
-    def healthy(self):
+    def healthy(self, release):
+        readiness = "migrate:" in (release / "compose.production.yaml").read_text()
         for attempt in range(12):
             try:
                 for base in ("http://127.0.0.1:18080", f"https://{self.domain}"):
-                    headers = {"User-Agent": "Bluddit-Healthcheck/1.0"}
-                    with urllib.request.urlopen(urllib.request.Request(base + "/", headers=headers), timeout=5) as response:
-                        if response.status != 200 or b"Shared progress." not in response.read():
-                            raise ValueError("Unexpected web response")
-                    with urllib.request.urlopen(urllib.request.Request(base + "/api/health", headers=headers), timeout=5) as response:
-                        if response.status != 200 or json.load(response) != {"status": "ok"}:
-                            raise ValueError("Unexpected API response")
+                    smoke_check(base, readiness=readiness)
                 print("Internal and public HTTPS checks passed", flush=True)
                 return
-            except (OSError, ValueError):
+            except (OSError, ValueError, AssertionError):
                 if attempt == 11:
                     raise DeploymentError("Application health checks failed; previous release remains recorded for workflow rollback") from None
                 time.sleep(5)
 
-    def rollout(self, release):
+    def migrate(self, release):
+        # This service is profiled out of ordinary up/restart/rollback operations.
+        self.compose(release, "up", "-d", "--wait", "--wait-timeout", "180", "db")
+        status = json.loads(self.compose(release, "run", "--rm", "--no-deps", "-T", "migrate",
+                           "python", "-m", "bluddit_api.migrate", "status"))
+        if status["pending"]:
+            # Includes databases predating the migration ledger. Backup must succeed first.
+            self.backup(release)
+        self.compose(release, "run", "--rm", "--no-deps", "-T", "migrate")
+
+    def rollout(self, release, *, migrate=False):
         self.compose(release, "config", "--quiet")
         self.compose(release, "pull")
+        if migrate:
+            self.migrate(release)
         self.compose(release, "up", "-d", "--wait", "--wait-timeout", "180")
         # Refresh upstream DNS after web/API container replacement.
         self.compose(release, "up", "-d", "--force-recreate", "--no-deps", "--wait", "--wait-timeout", "120", "nginx")
-        self.healthy()
+        self.healthy(release)
         write_private(release / "healthy.json", json.dumps({"verified_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
         self.activate(release)
         print(f"Healthy release: {release.name}", flush=True)
@@ -307,7 +325,7 @@ server_tokens off;
             self.compose(release, "up", "-d", "--wait", "--wait-timeout", "180")
             if self.sql(release, f"SELECT value FROM {table}") != nonce:
                 raise DeploymentError("Database persistence check failed")
-            self.healthy()
+            self.healthy(release)
         finally:
             self.sql(release, f"DROP TABLE IF EXISTS {table}")
         print("Container restart and database persistence checks passed", flush=True)
@@ -356,7 +374,7 @@ server_tokens off;
                 self.compose(release, "config", "--quiet")
                 self.compose(release, "pull")
                 self.configure_ingress()
-                self.rollout(release)
+                self.rollout(release, migrate=True)
             elif action == "rollback":
                 release = self.resolve_release(target)
                 self.authenticate()
@@ -376,7 +394,7 @@ server_tokens off;
                 release = self.current()
                 self.compose(release, "restart")
                 self.compose(release, "up", "-d", "--wait", "--wait-timeout", "180")
-                self.healthy()
+                self.healthy(release)
             else:
                 raise DeploymentError("Unsupported production operation")
 

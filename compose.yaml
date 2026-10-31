@@ -13,15 +13,32 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: [python, -m, bluddit_api.migrate, apply]
+    environment: &database_environment
+      APP_ENV: ${APP_ENV:-development}
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-bluddit}
+      PGUSER: ${POSTGRES_USER:-bluddit}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    environment:
-      APP_ENV: ${APP_ENV:-development}
+    environment: *database_environment
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
   web:
     build:
       context: .
@@ -38,7 +55,7 @@ services:
       web:
         condition: service_healthy
     healthcheck:
-      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/api/health && wget -q -O /dev/null http://127.0.0.1/']
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/api/ready && wget -q -O /dev/null http://127.0.0.1/']
       interval: 10s
       timeout: 5s
       retries: 12

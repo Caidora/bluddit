@@ -20,9 +20,30 @@ services:
     restart: unless-stopped
     environment:
       APP_ENV: production
+      PGHOST: db
+      PGDATABASE: bluddit
+      PGUSER: bluddit
+      PGPASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - source: api_postgres_password
+        target: postgres_password
     depends_on:
       db:
         condition: service_healthy
+  migrate:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    profiles: [migrations]
+    command: [python, -m, bluddit_api.migrate, apply]
+    environment:
+      PGHOST: db
+      PGDATABASE: bluddit
+      PGUSER: bluddit
+      PGPASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - source: api_postgres_password
+        target: postgres_password
+    healthcheck:
+      disable: true
   web:
     image: ${WEB_IMAGE:?WEB_IMAGE is required}
     restart: unless-stopped
@@ -34,7 +55,7 @@ services:
     volumes:
       - ./nginx/application.conf:/etc/nginx/conf.d/default.conf:ro
     healthcheck:
-      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/api/health && wget -q -O /dev/null http://127.0.0.1/']
+      test: [CMD-SHELL, 'wget -q -O /dev/null http://127.0.0.1/api/ready && wget -q -O /dev/null http://127.0.0.1/']
       interval: 10s
       timeout: 5s
       retries: 12
@@ -44,6 +65,8 @@ services:
       web:
         condition: service_healthy
 secrets:
+  api_postgres_password:
+    file: ${APP_ROOT:?APP_ROOT is required}/shared/api_postgres_password
   postgres_password:
     file: ${APP_ROOT:?APP_ROOT is required}/shared/postgres_password
 volumes:
