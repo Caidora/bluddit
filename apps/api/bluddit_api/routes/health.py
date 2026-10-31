@@ -1,4 +1,5 @@
 """Public process health and database readiness routes."""
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 import psycopg

@@ -1,4 +1,5 @@
 """Interactive account bootstrap and password recovery; never accept password flags."""
+
 import argparse
 import asyncio
 import getpass
@@ -11,17 +12,25 @@ from starlette.concurrency import run_in_threadpool
 
 from bluddit_api.database import Database, DatabaseSettings
 from bluddit_api.repositories.accounts import AccountRepository
-from bluddit_api.utils.security import PASSWORD_HASHER, normalize_username, validate_password
+from bluddit_api.utils.security import (
+    PASSWORD_HASHER,
+    normalize_username,
+    validate_password,
+)
 
 
-async def create_first_officer(database, username: str, display_name: str, password: str):
+async def create_first_officer(
+    database, username: str, display_name: str, password: str
+):
     username = normalize_username(username)
     validate_password(password)
     display_name = display_name.strip()
     if not 1 <= len(display_name) <= 100:
         raise ValueError("Display name must contain 1–100 characters")
     encoded = await run_in_threadpool(PASSWORD_HASHER.hash, password)
-    await AccountRepository(database).create_first_officer(username, display_name, encoded)
+    await AccountRepository(database).create_first_officer(
+        username, display_name, encoded
+    )
 
 
 async def reset_password(database, username: str, password: str):
@@ -36,7 +45,9 @@ async def run(args, password):
     try:
         await database.pool.open(wait=True)
         if args.command == "create-first-officer":
-            await create_first_officer(database, args.username, args.display_name, password)
+            await create_first_officer(
+                database, args.username, args.display_name, password
+            )
         else:
             await reset_password(database, args.username, password)
     finally:
@@ -62,8 +73,19 @@ def main():
             raise ValueError("Passwords do not match")
         validate_password(password)
         asyncio.run(run(args, password))
-    except (ValueError, RuntimeError, psycopg.Error, PoolTimeout, EOFError, KeyboardInterrupt, getpass.GetPassWarning):
-        print("Account operation failed; check input, account state, and database availability.", file=sys.stderr)
+    except (
+        ValueError,
+        RuntimeError,
+        psycopg.Error,
+        PoolTimeout,
+        EOFError,
+        KeyboardInterrupt,
+        getpass.GetPassWarning,
+    ):
+        print(
+            "Account operation failed; check input, account state, and database availability.",
+            file=sys.stderr,
+        )
         return 1
     print("Account operation completed.")
     return 0

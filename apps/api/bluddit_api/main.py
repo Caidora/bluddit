@@ -36,8 +36,13 @@ def create_app() -> FastAPI:
             if database:
                 await database.pool.close()
 
-    app = FastAPI(title="Bluddit API", docs_url=None, redoc_url=None,
-                  openapi_url=None, lifespan=lifespan)
+    app = FastAPI(
+        title="Bluddit API",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+    )
     app.state.migrations = migrations
     app.state.auth_settings = auth_settings
     app.state.login_throttle = LoginThrottle()
@@ -48,24 +53,46 @@ def create_app() -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):
         # FastAPI's default validation response includes rejected credential values.
-        return JSONResponse(status_code=422, content={"detail": "Invalid request input"})
+        return JSONResponse(
+            status_code=422, content={"detail": "Invalid request input"}
+        )
 
     @app.middleware("http")
     async def protect_requests(request: Request, call_next):
         response = None
-        if request.url.path.startswith("/api/") and request.method not in {"GET", "HEAD", "OPTIONS"}:
-            if (request.headers.get("origin") not in auth_settings.origins
-                    or request.headers.get("x-csrf-protection") != "1"):
-                response = JSONResponse(status_code=403, content={"detail": "Request origin or CSRF header rejected"})
-        if response is None and request.url.path == "/api/auth/login" and request.method == "POST":
-            if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
-                response = JSONResponse(status_code=415, content={"detail": "JSON required"})
+        if request.url.path.startswith("/api/") and request.method not in {
+            "GET",
+            "HEAD",
+            "OPTIONS",
+        }:
+            if (
+                request.headers.get("origin") not in auth_settings.origins
+                or request.headers.get("x-csrf-protection") != "1"
+            ):
+                response = JSONResponse(
+                    status_code=403,
+                    content={"detail": "Request origin or CSRF header rejected"},
+                )
+        if (
+            response is None
+            and request.url.path == "/api/auth/login"
+            and request.method == "POST"
+        ):
+            if (
+                request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+            ):
+                response = JSONResponse(
+                    status_code=415, content={"detail": "JSON required"}
+                )
             elif request.method == "POST":
                 body = bytearray()
                 async for chunk in request.stream():
                     body.extend(chunk)
                     if len(body) > 8192:
-                        response = JSONResponse(status_code=413, content={"detail": "Request too large"})
+                        response = JSONResponse(
+                            status_code=413, content={"detail": "Request too large"}
+                        )
                         break
                 if response is None:
                     request._body = bytes(body)
@@ -73,7 +100,9 @@ def create_app() -> FastAPI:
             try:
                 response = await call_next(request)
             except (psycopg.Error, PoolTimeout):
-                response = JSONResponse(status_code=503, content={"detail": "Database unavailable"})
+                response = JSONResponse(
+                    status_code=503, content={"detail": "Database unavailable"}
+                )
         if request.url.path.startswith("/api/auth/"):
             response.headers["Cache-Control"] = "no-store"
         return response

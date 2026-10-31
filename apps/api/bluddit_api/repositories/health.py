@@ -1,4 +1,5 @@
 """Database connectivity and migration readiness queries."""
+
 from bluddit_api.database import Database
 from bluddit_api.migrate import pending_migrations
 

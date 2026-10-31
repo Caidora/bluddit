@@ -1,4 +1,5 @@
 """Shared async connections with an explicit transaction per operation."""
+
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import os
@@ -16,7 +17,9 @@ class DatabaseSettings:
     def from_env(cls, *, required: bool = False):
         if not os.environ.get("PGHOST"):
             if required:
-                raise RuntimeError("Set PGHOST, PGDATABASE, PGUSER and PGPASSWORD or PGPASSWORD_FILE")
+                raise RuntimeError(
+                    "Set PGHOST, PGDATABASE, PGUSER and PGPASSWORD or PGPASSWORD_FILE"
+                )
             return None
         if not all(os.environ.get(key) for key in ("PGDATABASE", "PGUSER")):
             raise RuntimeError("Set PGDATABASE and PGUSER")
@@ -37,16 +40,28 @@ class DatabaseSettings:
                 raise ValueError
         except ValueError:
             raise RuntimeError("PGPORT must be a port number") from None
-        return cls(dict(host=os.environ["PGHOST"], port=port,
-                        dbname=os.environ["PGDATABASE"], user=os.environ["PGUSER"],
-                        password=password, connect_timeout=3, options="-c statement_timeout=3000"))
+        return cls(
+            dict(
+                host=os.environ["PGHOST"],
+                port=port,
+                dbname=os.environ["PGDATABASE"],
+                user=os.environ["PGUSER"],
+                password=password,
+                connect_timeout=3,
+                options="-c statement_timeout=3000",
+            )
+        )
 
 
 class Database:
     def __init__(self, settings: DatabaseSettings):
         self.pool = AsyncConnectionPool(
-            conninfo="", kwargs={**settings.parameters, "autocommit": True},
-            min_size=1, max_size=5, timeout=3, open=False,
+            conninfo="",
+            kwargs={**settings.parameters, "autocommit": True},
+            min_size=1,
+            max_size=5,
+            timeout=3,
+            open=False,
             check=AsyncConnectionPool.check_connection,
         )
 

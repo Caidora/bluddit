@@ -1,4 +1,5 @@
 """Migration/readiness and rollback behavior, without application-schema assertions."""
+
 from httpx import ASGITransport, AsyncClient
 import psycopg
 import pytest
@@ -9,11 +10,12 @@ from bluddit_api.migrate import run_migrations
 pytestmark = pytest.mark.anyio
 
 
-
-
 async def test_migrations_rerun_safely_and_make_api_ready(database):
     app = create_app()
-    async with app.router.lifespan_context(app), AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+    async with (
+        app.router.lifespan_context(app),
+        AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client,
+    ):
         assert (await client.get("/api/health")).status_code == 200
         assert (await client.get("/api/ready")).status_code == 503
         async with database.pool.connection() as connection:
@@ -27,7 +29,10 @@ async def test_failed_transaction_leaves_no_partial_writes(database):
         await connection.execute("CREATE TABLE transaction_probe (value text)")
     with pytest.raises(RuntimeError, match="abort"):
         async with database.transaction() as connection:
-            await connection.execute("INSERT INTO transaction_probe VALUES (%(value)s)", {"value": "a user's input"})
+            await connection.execute(
+                "INSERT INTO transaction_probe VALUES (%(value)s)",
+                {"value": "a user's input"},
+            )
             raise RuntimeError("abort operation")
     async with database.transaction() as connection:
         cursor = await connection.execute("SELECT count(*) FROM transaction_probe")
@@ -44,4 +49,6 @@ async def test_failed_migration_rolls_back_changes_and_ledger(database, tmp_path
         assert (await cursor.fetchone())[0] is None
         # A successful retry proves the failed migration was not recorded as applied.
         migration.write_text("CREATE TABLE migration_probe (value text);")
-        assert (await run_migrations(connection, apply=True, directory=tmp_path))["applied"] == [migration.name]
+        assert (await run_migrations(connection, apply=True, directory=tmp_path))[
+            "applied"
+        ] == [migration.name]

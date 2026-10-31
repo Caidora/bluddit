@@ -1,4 +1,5 @@
 """Shared credential validation and opaque token primitives."""
+
 import base64
 import hashlib
 import re
@@ -16,7 +17,9 @@ DUMMY_HASH = PASSWORD_HASHER.hash(secrets.token_urlsafe(32))
 def normalize_username(value: str) -> str:
     username = value.strip().lower()
     if not re.fullmatch(r"[a-z0-9_]{3,32}", username):
-        raise ValueError("Username must contain 3–32 ASCII letters, digits, or underscores")
+        raise ValueError(
+            "Username must contain 3–32 ASCII letters, digits, or underscores"
+        )
     return username
 
 

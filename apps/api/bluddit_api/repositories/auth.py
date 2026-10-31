@@ -1,4 +1,5 @@
 """Authentication queries and their transaction boundaries."""
+
 from psycopg.rows import dict_row
 
 from bluddit_api.database import Database
@@ -39,8 +40,13 @@ class AuthRepository:
             cursor.row_factory = dict_row
             return await cursor.fetchone()
 
-    async def create_session(self, account_id: int, password_hash: str,
-                             refresh_hash: bytes, access_hash: bytes) -> bool:
+    async def create_session(
+        self,
+        account_id: int,
+        password_hash: str,
+        refresh_hash: bytes,
+        access_hash: bytes,
+    ) -> bool:
         async with self.database.transaction() as connection:
             # Coordinate login/reset and recheck credentials after password verification.
             cursor = await connection.execute(
@@ -50,7 +56,11 @@ class AuthRepository:
                     AND password_hash = %(password_hash)s
                 FOR UPDATE
                 """,
-                {"account_id": account_id, "membership_state": ACTIVE, "password_hash": password_hash},
+                {
+                    "account_id": account_id,
+                    "membership_state": ACTIVE,
+                    "password_hash": password_hash,
+                },
             )
             if await cursor.fetchone() is None:
                 return False
@@ -66,8 +76,9 @@ class AuthRepository:
             await self._insert_access(connection, account_id, refresh_id, access_hash)
         return True
 
-    async def rotate_session(self, current_hash: bytes, replacement_hash: bytes,
-                             access_hash: bytes) -> bool:
+    async def rotate_session(
+        self, current_hash: bytes, replacement_hash: bytes, access_hash: bytes
+    ) -> bool:
         async with self.database.transaction() as connection:
             # UPDATE rechecks its predicate after a concurrent updater commits.
             cursor = await connection.execute(
@@ -81,8 +92,11 @@ class AuthRepository:
                     )
                 RETURNING r.id, r.account_id
                 """,
-                {"replacement_hash": replacement_hash, "current_hash": current_hash,
-                 "membership_state": ACTIVE},
+                {
+                    "replacement_hash": replacement_hash,
+                    "current_hash": current_hash,
+                    "membership_state": ACTIVE,
+                },
             )
             session = await cursor.fetchone()
             if session is None:
@@ -101,11 +115,17 @@ class AuthRepository:
             )
 
     @staticmethod
-    async def _insert_access(connection, account_id: int, refresh_id: int, hashed: bytes):
+    async def _insert_access(
+        connection, account_id: int, refresh_id: int, hashed: bytes
+    ):
         await connection.execute(
             """
             INSERT INTO sessions (token_hash, account_id, refresh_session_id, expires_at)
             VALUES (%(token_hash)s, %(account_id)s, %(refresh_session_id)s, now() + interval '10 minutes')
             """,
-            {"token_hash": hashed, "account_id": account_id, "refresh_session_id": refresh_id},
+            {
+                "token_hash": hashed,
+                "account_id": account_id,
+                "refresh_session_id": refresh_id,
+            },
         )

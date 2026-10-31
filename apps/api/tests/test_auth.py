@@ -9,7 +9,12 @@ from bluddit_api import admin
 from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 from bluddit_api.main import create_app
 from bluddit_api.database import get_database
-from bluddit_api.utils.security import new_token, normalize_username, token_hash, validate_password
+from bluddit_api.utils.security import (
+    new_token,
+    normalize_username,
+    token_hash,
+    validate_password,
+)
 
 
 def test_credentials_and_token_validation():
@@ -32,10 +37,15 @@ def test_credentials_and_token_validation():
 async def test_throttle_concurrency_expiry_and_bounded_capacity():
     now = [0]
     limiter = LoginThrottle(capacity=1, clock=lambda: now[0])
-    results = await asyncio.gather(*(limiter.reserve("member") for _ in range(12)), return_exceptions=True)
+    results = await asyncio.gather(
+        *(limiter.reserve("member") for _ in range(12)), return_exceptions=True
+    )
     assert sum(result is None for result in results) == 10
-    assert all(result.status_code == 429 and result.headers["Retry-After"] == "900"
-               for result in results if isinstance(result, HTTPException))
+    assert all(
+        result.status_code == 429 and result.headers["Retry-After"] == "900"
+        for result in results
+        if isinstance(result, HTTPException)
+    )
     with pytest.raises(HTTPException) as rejected:
         await limiter.reserve("another")
     assert rejected.value.status_code == 429
@@ -51,13 +61,35 @@ def test_origin_csrf_json_and_secret_safe_validation(monkeypatch):
     app.dependency_overrides[get_database] = lambda: object()
     with TestClient(app) as client:
         headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
-        for bad in ({}, {"Origin": "https://evil.invalid", "X-CSRF-Protection": "1"}, {"Origin": "http://testserver"}):
-            response = client.post("/api/auth/login", headers=bad, json={"username": "member", "password": "private-password"})
+        for bad in (
+            {},
+            {"Origin": "https://evil.invalid", "X-CSRF-Protection": "1"},
+            {"Origin": "http://testserver"},
+        ):
+            response = client.post(
+                "/api/auth/login",
+                headers=bad,
+                json={"username": "member", "password": "private-password"},
+            )
             assert response.status_code == 403
             assert response.headers["cache-control"] == "no-store"
-        assert client.post("/api/auth/login", headers=headers, content="username=member").status_code == 415
-        assert client.post("/api/auth/login", headers=headers, json={"password": "x" * 9000}).status_code == 413
-        response = client.post("/api/auth/login", headers=headers, json={"username": "!", "password": "private-password"})
+        assert (
+            client.post(
+                "/api/auth/login", headers=headers, content="username=member"
+            ).status_code
+            == 415
+        )
+        assert (
+            client.post(
+                "/api/auth/login", headers=headers, json={"password": "x" * 9000}
+            ).status_code
+            == 413
+        )
+        response = client.post(
+            "/api/auth/login",
+            headers=headers,
+            json={"username": "!", "password": "private-password"},
+        )
         assert response.status_code == 422
         assert "private-password" not in response.text
         assert "set-cookie" not in response.headers
@@ -67,7 +99,13 @@ def test_production_settings_require_explicit_https_origins(monkeypatch):
     monkeypatch.delenv("AUTH_ALLOWED_ORIGINS", raising=False)
     with pytest.raises(RuntimeError, match="AUTH_ALLOWED_ORIGINS"):
         AuthSettings.from_env("production")
-    for origin in ("*", "http://example.org", "https://example.org/", "https://user@example.org", "https://example.org/path"):
+    for origin in (
+        "*",
+        "http://example.org",
+        "https://example.org/",
+        "https://user@example.org",
+        "https://example.org/path",
+    ):
         monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", origin)
         with pytest.raises(RuntimeError):
             AuthSettings.from_env("production")
@@ -79,7 +117,11 @@ def test_cli_hidden_confirmation_and_safe_failures(monkeypatch, capsys):
     monkeypatch.setattr("sys.argv", ["admin", "reset-password", "--username", "member"])
     prompts = []
     answers = iter(["private-password", "different-password"])
-    monkeypatch.setattr(admin.getpass, "getpass", lambda prompt: (prompts.append(prompt), next(answers))[1])
+    monkeypatch.setattr(
+        admin.getpass,
+        "getpass",
+        lambda prompt: (prompts.append(prompt), next(answers))[1],
+    )
     assert admin.main() == 1
     assert len(prompts) == 2
     output = capsys.readouterr()

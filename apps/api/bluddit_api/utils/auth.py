@@ -1,4 +1,5 @@
 """Shared authentication configuration, throttling, cookies, and dependencies."""
+
 import asyncio
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -27,23 +28,38 @@ class AuthSettings:
 
     @classmethod
     def from_env(cls, environment: str):
-        origins = frozenset(filter(None, (
-            value.strip() for value in os.environ.get("AUTH_ALLOWED_ORIGINS", "").split(",")
-        )))
+        origins = frozenset(
+            filter(
+                None,
+                (
+                    value.strip()
+                    for value in os.environ.get("AUTH_ALLOWED_ORIGINS", "").split(",")
+                ),
+            )
+        )
         if environment == "production" and not origins:
             raise RuntimeError("Set AUTH_ALLOWED_ORIGINS in production")
         for origin in origins:
             parsed = urlsplit(origin)
-            if (parsed.scheme not in {"http", "https"} or not parsed.netloc
-                    or parsed.username is not None or parsed.password is not None
-                    or parsed.path or parsed.query or parsed.fragment
-                    or (environment == "production" and parsed.scheme != "https")):
-                raise RuntimeError("AUTH_ALLOWED_ORIGINS must contain exact origins (HTTPS in production)")
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.netloc
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+                or (environment == "production" and parsed.scheme != "https")
+            ):
+                raise RuntimeError(
+                    "AUTH_ALLOWED_ORIGINS must contain exact origins (HTTPS in production)"
+                )
         return cls(origins, environment == "production")
 
 
 class LoginThrottle:
     """Process-local fixed windows; never evict an unexpired bucket to admit a key."""
+
     def __init__(self, *, capacity=10000, clock=time.monotonic):
         self.buckets = OrderedDict()
         self.capacity = capacity
@@ -59,23 +75,38 @@ class LoginThrottle:
             if bucket is None:
                 if len(self.buckets) >= self.capacity:
                     retry = next(iter(self.buckets.values()))[0] - now
-                    raise HTTPException(429, "Try again later", headers={"Retry-After": str(max(1, math.ceil(retry)))})
+                    raise HTTPException(
+                        429,
+                        "Try again later",
+                        headers={"Retry-After": str(max(1, math.ceil(retry)))},
+                    )
                 bucket = [now + 900, 0]
                 self.buckets[username] = bucket
             if bucket[1] >= 10:
-                raise HTTPException(429, "Try again later", headers={"Retry-After": str(max(1, math.ceil(bucket[0] - now)))})
+                raise HTTPException(
+                    429,
+                    "Try again later",
+                    headers={"Retry-After": str(max(1, math.ceil(bucket[0] - now)))},
+                )
             bucket[1] += 1
 
 
 def unauthorized():
-    return HTTPException(401, "Authentication required", headers={"WWW-Authenticate": "Bearer"})
+    return HTTPException(
+        401, "Authentication required", headers={"WWW-Authenticate": "Bearer"}
+    )
 
 
 def set_refresh_cookie(response: Response, token: str, settings: AuthSettings):
     response.set_cookie(
-        COOKIE_NAME, token, max_age=REFRESH_SECONDS,
+        COOKIE_NAME,
+        token,
+        max_age=REFRESH_SECONDS,
         expires=datetime.now(timezone.utc) + timedelta(seconds=REFRESH_SECONDS),
-        path=TOKEN_PATH, secure=settings.secure, httponly=True, samesite="strict",
+        path=TOKEN_PATH,
+        secure=settings.secure,
+        httponly=True,
+        samesite="strict",
     )
 
 

@@ -1,4 +1,5 @@
 """Atomic account bootstrap and password recovery persistence."""
+
 from bluddit_api.database import Database
 from bluddit_api.utils.security import ACTIVE
 
@@ -7,7 +8,9 @@ class AccountRepository:
     def __init__(self, database: Database):
         self.database = database
 
-    async def create_first_officer(self, username: str, display_name: str, password_hash: str):
+    async def create_first_officer(
+        self, username: str, display_name: str, password_hash: str
+    ):
         async with self.database.transaction() as connection:
             await connection.execute("""SELECT pg_advisory_xact_lock(730003)""")
             cursor = await connection.execute(
@@ -25,8 +28,12 @@ class AccountRepository:
                 INSERT INTO accounts (username, display_name, password_hash, membership_state, role_name)
                 VALUES (%(username)s, %(display_name)s, %(password_hash)s, %(membership_state)s, 'officer')
                 """,
-                {"username": username, "display_name": display_name,
-                 "password_hash": password_hash, "membership_state": ACTIVE},
+                {
+                    "username": username,
+                    "display_name": display_name,
+                    "password_hash": password_hash,
+                    "membership_state": ACTIVE,
+                },
             )
 
     async def reset_password(self, username: str, password_hash: str):
