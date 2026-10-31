@@ -82,6 +82,15 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaisesRegex(deploy.DeploymentError, "Release ID"):
             self.operation.resolve_release("../../etc")
 
+    def test_failed_release_cannot_be_selected_as_rollback_target(self):
+        release_id = "b" * 40 + "-456"
+        with self.operation.locked():
+            release = self.operation.releases / release_id
+            release.mkdir()
+            (release / "manifest.json").write_text("{}")
+            with self.assertRaisesRegex(deploy.DeploymentError, "no successful health-verification"):
+                self.operation.resolve_release(release_id)
+
     def test_command_failures_do_not_leak_output_or_arguments(self):
         result = subprocess.CompletedProcess([], 1, b"private-host", b"secret-password")
         with patch.object(subprocess, "run", return_value=result):

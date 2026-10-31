@@ -123,6 +123,26 @@ jobs:
           docker volume create bluddit_postgres_data
           docker compose -f infra/compose.production.yaml up -d --wait --wait-timeout 180
           python3 infra/smoke.py http://127.0.0.1:18080
+      - name: Save public image verification metadata
+        env:
+          WEB_IMAGE: ${{ steps.refs.outputs.web }}
+          API_IMAGE: ${{ steps.refs.outputs.api }}
+          DB_IMAGE: ${{ steps.refs.outputs.db }}
+          NGINX_IMAGE: ${{ steps.refs.outputs.nginx }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          metadata = {key: os.environ[key] for key in ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE")}
+          metadata["release_id"] = os.environ["GITHUB_SHA"] + "-" + os.environ["GITHUB_RUN_ID"]
+          Path("deployment-images.json").write_text(json.dumps(metadata, indent=2) + "\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployment-images
+          path: deployment-images.json
+          retention-days: 30
       - name: Stop published-image test stack
         if: always() && steps.refs.outcome == 'success'
         env:

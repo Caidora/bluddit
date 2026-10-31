@@ -123,7 +123,9 @@ checks and publishes/deploys the selected `main` commit. Deployment from feature
 branches is disabled. Operations are serialized and never cancel an active deploy.
 
 Release IDs are `<full-commit-SHA>-<workflow-run-ID>`. Workflow summaries contain
-the candidate release and image references; the remote `current` reference only
+the candidate release and image references. A `deployment-images` artifact records
+the tested image digests and release ID without host settings or credentials.
+The remote `current` reference only
 advances after internal and public HTTPS checks pass and `healthy.json` records
 successful verification. Rollback refuses releases without that record.
 Health clients identify themselves as `Bluddit-Healthcheck/1.0`; the site's CDN
