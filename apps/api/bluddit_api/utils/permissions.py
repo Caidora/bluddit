@@ -2,6 +2,10 @@
 
 from enum import StrEnum
 from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from bluddit_api.models.accounts import AccountState
 
 
 class Role(StrEnum):
@@ -53,6 +57,6 @@ class RolePolicy:
         return cls.mappings.get(role, frozenset())
 
     @classmethod
-    def allows(cls, account: dict, permission: Permission) -> bool:
-        active = account["membership_state"] == "active"
-        return active and permission in cls.permissions(account["role_name"])
+    def allows(cls, account: "AccountState", permission: Permission) -> bool:
+        active = account.membership_state == "active"
+        return active and permission in cls.permissions(account.role_name)

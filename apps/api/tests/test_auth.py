@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from bluddit_api import admin
+from bluddit_api.models.accounts import Account, AccountCredentials
 from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 from bluddit_api.main import create_app
 from bluddit_api.utils.dependencies import get_auth_repository
@@ -135,17 +136,19 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
     monkeypatch.setattr("bluddit_api.routes.auth.verify_password", lambda *_: True)
     repository = AsyncMock()
-    repository.get_account_credentials.return_value = {
-        "id": 1,
-        "password_hash": "test-hash",
-        "membership_state": "active",
-    }
+    repository.get_account_credentials.return_value = AccountCredentials(
+        id=1, password_hash="test-hash", membership_state="active"
+    )
     repository.create_session.return_value = True
     repository.rotate_session.return_value = True
-    repository.get_account_for_hashed_access_token.return_value = {
-        "username": "member",
-        "role_name": "member",
-    }
+    repository.get_account_for_hashed_access_token.return_value = Account(
+        id=1,
+        username="member",
+        display_name="Member",
+        role_name="member",
+        membership_state="active",
+        timezone=None,
+    )
     app = create_app()
     app.dependency_overrides[get_auth_repository] = lambda: repository
     headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}

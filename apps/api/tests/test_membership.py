@@ -9,6 +9,7 @@ import pytest
 import psycopg
 
 from bluddit_api.main import create_app
+from bluddit_api.models.accounts import Account, AccountState
 from bluddit_api.database import get_database
 from bluddit_api.utils.dependencies import get_membership_repository
 from bluddit_api.utils.permissions import Permission, Role, RolePolicy
@@ -22,7 +23,7 @@ def test_policy_is_immutable_and_requires_active_membership():
     assert not RolePolicy.permissions("unknown")
     for state in ("pending", "rejected", "inactive"):
         assert not RolePolicy.allows(
-            {"role_name": "guild_master", "membership_state": state},
+            AccountState(id=1, role_name="guild_master", membership_state=state),
             Permission.ACCOUNTS_MANAGE,
         )
     with pytest.raises(TypeError):
@@ -36,7 +37,14 @@ def test_registration_guards_validation_normalization_and_throttle(monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
     repository = AsyncMock()
-    repository.register.return_value = {"membership_state": "pending"}
+    repository.register.return_value = Account(
+        id=1,
+        username="new_member",
+        display_name="New Member",
+        membership_state="pending",
+        role_name="member",
+        timezone=None,
+    )
     app = create_app()
     app.dependency_overrides[get_membership_repository] = lambda: repository
     body = {
