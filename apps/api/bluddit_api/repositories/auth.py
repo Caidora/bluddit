@@ -10,7 +10,7 @@ class AuthRepository:
     def __init__(self, database: Database):
         self.database = database
 
-    async def account_credentials(self, username: str):
+    async def get_account_credentials(self, username: str):
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -23,7 +23,7 @@ class AuthRepository:
             cursor.row_factory = dict_row
             return await cursor.fetchone()
 
-    async def account_for_access(self, hashed: bytes):
+    async def get_account_for_hashed_access_token(self, hashed: bytes):
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """

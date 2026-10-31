@@ -11,8 +11,8 @@ from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request, Response
 
-from bluddit_api.database import Database, get_database
 from bluddit_api.repositories.auth import AuthRepository
+from bluddit_api.utils.dependencies import get_auth_repository
 from bluddit_api.utils.security import token_hash
 
 ACCESS_SECONDS = 600
@@ -110,12 +110,14 @@ def set_refresh_cookie(response: Response, token: str, settings: AuthSettings):
     )
 
 
-async def current_account(request: Request, database: Database = Depends(get_database)):
+async def current_account(
+    request: Request, repository: AuthRepository = Depends(get_auth_repository)
+):
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
     hashed = token_hash(token) if scheme.lower() == "bearer" else None
     if hashed is None:
         raise unauthorized()
-    account = await AuthRepository(database).account_for_access(hashed)
+    account = await repository.get_account_for_hashed_access_token(hashed)
     if account is None:
         raise unauthorized()
     return account

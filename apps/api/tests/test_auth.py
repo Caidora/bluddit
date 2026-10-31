@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from unittest.mock import AsyncMock
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -8,7 +9,7 @@ import pytest
 from bluddit_api import admin
 from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 from bluddit_api.main import create_app
-from bluddit_api.database import get_database
+from bluddit_api.utils.dependencies import get_auth_repository
 from bluddit_api.utils.security import (
     new_token,
     normalize_username,
@@ -58,7 +59,7 @@ def test_origin_csrf_json_and_secret_safe_validation(monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
     app = create_app()
-    app.dependency_overrides[get_database] = lambda: object()
+    app.dependency_overrides[get_auth_repository] = lambda: object()
     with TestClient(app) as client:
         headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
         for bad in (
@@ -126,3 +127,45 @@ def test_cli_hidden_confirmation_and_safe_failures(monkeypatch, capsys):
     assert len(prompts) == 2
     output = capsys.readouterr()
     assert "private-password" not in output.err + output.out
+
+
+def test_auth_routes_accept_repository_override_without_database(monkeypatch):
+    monkeypatch.delenv("PGHOST", raising=False)
+    monkeypatch.setenv("APP_ENV", "test")
+    monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
+    monkeypatch.setattr("bluddit_api.routes.auth.verify_password", lambda *_: True)
+    repository = AsyncMock()
+    repository.get_account_credentials.return_value = {
+        "id": 1,
+        "password_hash": "test-hash",
+        "membership_state": "active",
+    }
+    repository.create_session.return_value = True
+    repository.rotate_session.return_value = True
+    repository.get_account_for_hashed_access_token.return_value = {"username": "member"}
+    app = create_app()
+    app.dependency_overrides[get_auth_repository] = lambda: repository
+    headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/auth/login",
+            headers=headers,
+            json={"username": "member", "password": "test-password"},
+        )
+        assert response.status_code == 200
+        access = response.json()["access_token"]
+        refresh = client.cookies.get("bluddit_refresh")
+        response = client.get(
+            "/api/auth/me", headers={"Authorization": "Bearer " + access}
+        )
+        assert response.json() == {"username": "member"}
+        repository.get_account_for_hashed_access_token.assert_awaited_once_with(
+            token_hash(access)
+        )
+        assert client.post("/api/auth/token", headers=headers).status_code == 200
+        assert repository.rotate_session.await_args.args[0] == token_hash(refresh)
+        rotated_refresh = client.cookies.get("bluddit_refresh")
+        assert client.delete("/api/auth/token", headers=headers).status_code == 204
+        repository.revoke_session.assert_awaited_once_with(token_hash(rotated_refresh))
+        repository.get_account_credentials.assert_awaited_once_with("member")
+        repository.create_session.assert_awaited_once()

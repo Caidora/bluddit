@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from starlette.concurrency import run_in_threadpool
 
-from bluddit_api.database import Database, get_database
 from bluddit_api.repositories.auth import AuthRepository
+from bluddit_api.utils.dependencies import get_auth_repository
 from bluddit_api.utils.auth import (
     COOKIE_NAME,
     TOKEN_PATH,
@@ -42,11 +42,10 @@ async def login(
     body: LoginInput,
     request: Request,
     response: Response,
-    database: Database = Depends(get_database),
+    repository: AuthRepository = Depends(get_auth_repository),
 ):
     await request.app.state.login_throttle.reserve(body.username)
-    repository = AuthRepository(database)
-    account = await repository.account_credentials(body.username)
+    account = await repository.get_account_credentials(body.username)
     # Bound memory-intensive password work even across many different usernames.
     async with request.app.state.password_slots:
         valid = await run_in_threadpool(
@@ -75,13 +74,15 @@ async def login(
 
 @router.post("/token")
 async def refresh(
-    request: Request, response: Response, database: Database = Depends(get_database)
+    request: Request,
+    response: Response,
+    repository: AuthRepository = Depends(get_auth_repository),
 ):
     hashed = token_hash(request.cookies.get(COOKIE_NAME))
     if hashed is None:
         raise unauthorized()
     replacement, access = new_token(), new_token()
-    rotated = await AuthRepository(database).rotate_session(
+    rotated = await repository.rotate_session(
         hashed,
         token_hash(replacement),
         token_hash(access),
@@ -93,10 +94,12 @@ async def refresh(
 
 
 @router.delete("/token", status_code=204)
-async def logout(request: Request, database: Database = Depends(get_database)):
+async def logout(
+    request: Request, repository: AuthRepository = Depends(get_auth_repository)
+):
     hashed = token_hash(request.cookies.get(COOKIE_NAME))
     if hashed is not None:
-        await AuthRepository(database).revoke_session(hashed)
+        await repository.revoke_session(hashed)
     response = Response(status_code=204)
     response.delete_cookie(
         COOKIE_NAME,

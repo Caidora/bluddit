@@ -129,3 +129,22 @@ SQL parameters. Stored strings and public API responses remain unchanged.
 Verification: `make api-test db-test` passed all 26 API/database checks, including
 membership gating, officer bootstrap, and reset behavior, against an isolated
 PostgreSQL test database. `git diff --check` passed.
+
+### Repository dependency injection review — 2026-10-31
+
+Renamed authentication lookups to `get_account_credentials` and
+`get_account_for_hashed_access_token` as requested in PR #3. Added FastAPI
+repository providers in `utils/dependencies.py`; login, refresh, logout,
+current-account authentication, and readiness now receive repositories through
+`Depends`. Database selection and repository construction stay in providers.
+Readiness preserves its existing 503 response when no database is configured.
+Updated contributor and runbook guidance. No schema or session-policy changes.
+
+Verification: Ruff formatting/checks and `git diff --check` passed. `make verify`
+passed frontend types/build, 15 API/unit checks, 15 database integration checks,
+18 infrastructure checks, and Compose validation using an isolated PostgreSQL 18
+test container. All 15 database integration checks also passed against the
+repository's `postgres:17-bookworm` image. New checks exercise injected repositories
+through login, current-account, refresh, logout, and readiness without a database,
+and confirm readiness behavior when no database is configured. Maintainer review,
+merge/Actions deployment, and production acceptance remain pending.

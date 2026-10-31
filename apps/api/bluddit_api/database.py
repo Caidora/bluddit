@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import os
 from pathlib import Path
 
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from psycopg_pool import AsyncConnectionPool
 
 
@@ -72,8 +72,13 @@ class Database:
                 yield connection
 
 
-async def get_database(request: Request) -> Database:
-    database = request.app.state.database
+async def get_optional_database(request: Request) -> Database | None:
+    return request.app.state.database
+
+
+async def get_database(
+    database: Database | None = Depends(get_optional_database),
+) -> Database:
     if database is None:
         raise HTTPException(status_code=503, detail="Database unavailable")
     return database

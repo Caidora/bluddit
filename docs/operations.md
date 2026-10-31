@@ -242,7 +242,11 @@ missing local configuration leaves process health working and readiness at 503.
 One async pool per API process has 1–5 connections and a three-second acquisition/query
 timeout. API startup opens it without waiting for the database, so process health
 remains available during outages. Routes live in `bluddit_api/routes`; use
-`async def` endpoints and `Depends(get_database)` to construct repositories.
+`async def` endpoints with repository dependencies such as
+`Depends(get_auth_repository)`. Providers in `bluddit_api/utils/dependencies.py`
+construct repositories using `Depends(get_database)`; routes and authentication
+helpers receive repositories instead of database connections. Readiness uses an
+optional repository so an unconfigured database still returns its existing 503 response.
 Application SQL and short `async with database.transaction() as connection:`
 blocks belong in `bluddit_api/repositories`, not routes or account CLI handlers.
 Keep each query in one triple-quoted string and bind values using named
