@@ -23,28 +23,28 @@ def create_app() -> FastAPI:
         app.state.database = database
         if database:
             # Don't wait for connectivity: liveness remains available during DB outages.
-            database.pool.open(wait=False)
+            await database.pool.open(wait=False)
         try:
             yield
         finally:
             if database:
-                database.pool.close()
+                await database.pool.close()
 
     app = FastAPI(title="Bluddit API", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
 
     @app.get("/api/health")
-    def health() -> dict[str, str]:
+    async def health() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/api/ready")
-    def ready():
+    async def ready():
         database = app.state.database
         if database:
             try:
-                with database.transaction() as connection:
-                    connection.execute("SELECT 1")
-                    if not pending_migrations(connection, migrations):
+                async with database.transaction() as connection:
+                    await connection.execute("SELECT 1")
+                    if not await pending_migrations(connection, migrations):
                         return {"status": "ok"}
             except (psycopg.Error, PoolTimeout, MigrationError):
                 pass

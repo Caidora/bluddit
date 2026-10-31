@@ -1,5 +1,6 @@
 """Forward-only SQL migrations: python -m bluddit_api.migrate status|apply."""
 import argparse
+import asyncio
 from dataclasses import dataclass
 import hashlib
 import json
@@ -40,29 +41,31 @@ def load_migrations(directory: Path = MIGRATIONS) -> list[Migration]:
     return migrations
 
 
-def pending_migrations(connection, migrations: list[Migration]) -> list[Migration]:
-    if connection.execute("SELECT to_regclass('public.schema_migrations')").fetchone()[0] is None:
+async def pending_migrations(connection, migrations: list[Migration]) -> list[Migration]:
+    cursor = await connection.execute("SELECT to_regclass('public.schema_migrations')")
+    if (await cursor.fetchone())[0] is None:
         return migrations
-    applied = connection.execute(
+    cursor = await connection.execute(
         "SELECT version, filename, checksum FROM public.schema_migrations ORDER BY version"
-    ).fetchall()
+    )
+    applied = await cursor.fetchall()
     expected = [(m.version, m.filename, m.checksum) for m in migrations]
     if applied != expected[:len(applied)]:
         raise MigrationError("Migration history differs from this image; restore applied files or use a compatible release")
     return migrations[len(applied):]
 
 
-def run_migrations(connection, *, apply: bool = False, directory: Path = MIGRATIONS) -> dict:
+async def run_migrations(connection, *, apply: bool = False, directory: Path = MIGRATIONS) -> dict:
     migrations = load_migrations(directory)
     # A session lock spans all per-migration transactions, including ledger creation.
-    connection.execute("SELECT pg_advisory_lock(%s)", (LOCK_ID,))
+    await connection.execute("SELECT pg_advisory_lock(%s)", (LOCK_ID,))
     try:
-        pending = pending_migrations(connection, migrations)
+        pending = await pending_migrations(connection, migrations)
         result = {"pending": [m.filename for m in pending], "applied": []}
         if apply:
             for migration in pending:
-                with connection.transaction():
-                    connection.execute("""
+                async with connection.transaction():
+                    await connection.execute("""
                         CREATE TABLE IF NOT EXISTS public.schema_migrations (
                             version integer PRIMARY KEY,
                             filename text NOT NULL,
@@ -70,8 +73,8 @@ def run_migrations(connection, *, apply: bool = False, directory: Path = MIGRATI
                             applied_at timestamptz NOT NULL DEFAULT now()
                         )
                     """)
-                    connection.execute(migration.sql)
-                    connection.execute(
+                    await connection.execute(migration.sql)
+                    await connection.execute(
                         "INSERT INTO public.schema_migrations (version, filename, checksum) VALUES (%s, %s, %s)",
                         (migration.version, migration.filename, migration.checksum),
                     )
@@ -79,10 +82,10 @@ def run_migrations(connection, *, apply: bool = False, directory: Path = MIGRATI
             result["pending"] = []
         return result
     finally:
-        connection.execute("SELECT pg_advisory_unlock(%s)", (LOCK_ID,))
+        await connection.execute("SELECT pg_advisory_unlock(%s)", (LOCK_ID,))
 
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("status", "apply"))
     args = parser.parse_args()
@@ -90,8 +93,8 @@ def main():
         settings = DatabaseSettings.from_env(required=True)
         # Migrations may take longer than ordinary API queries; keep lock waits bounded.
         parameters = {**settings.parameters, "options": "-c lock_timeout=30000 -c statement_timeout=300000"}
-        with psycopg.connect(**parameters, autocommit=True) as connection:
-            print(json.dumps(run_migrations(connection, apply=args.command == "apply")))
+        async with await psycopg.AsyncConnection.connect(**parameters, autocommit=True) as connection:
+            print(json.dumps(await run_migrations(connection, apply=args.command == "apply")))
     except (RuntimeError, psycopg.Error, OSError, UnicodeError) as error:
         message = str(error) if isinstance(error, RuntimeError) else "Database migration failed; inspect private database logs"
         print(message, file=sys.stderr)
@@ -100,4 +103,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(asyncio.run(main()))

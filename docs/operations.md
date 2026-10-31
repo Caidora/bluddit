@@ -13,7 +13,7 @@ Base-image patch updates are picked up by a new build, not by restarting a relea
 
 The Python PostgreSQL driver is **Psycopg 3.3.6** (binary distribution), with
 **psycopg-pool 3.3.3**, explicit parameterized SQL, and no ORM. Numbered SQL
-migrations introduce accounts, permission grants, and sessions. Authentication
+migrations introduce accounts, roles, permissions, grants, and sessions. Authentication
 endpoints remain in ticket 03.
 
 ## Frontend rendering
@@ -228,13 +228,29 @@ retain host ownership. Do not print connection settings or dump Compose's expand
 configuration into logs. Production requires database configuration at startup;
 missing local configuration leaves process health working and readiness at 503.
 
-One pool per API process has 1–5 connections and a three-second acquisition/query
+One async pool per API process has 1–5 connections and a three-second acquisition/query
 timeout. API startup opens it without waiting for the database, so process health
-remains available during outages. Database-backed handlers should be synchronous:
-use `Depends(get_database)` and a short `with database.transaction() as connection:`
-block around each business operation. Pass values using `%s` placeholders and a
-separate parameter sequence. The block commits on success and rolls back on error.
-No SQL string interpolation or ORM is used.
+remains available during outages. Use `async def` for FastAPI endpoints and
+`Depends(get_database)` with a short `async with database.transaction() as connection:`
+block around each business operation. Await connection execution and cursor fetch
+operations. Pass values using `%s` placeholders and a separate parameter sequence.
+The block commits on success and rolls back on error. The migration CLI also uses
+async connections. No SQL string interpolation or ORM is used.
+
+Migration `0002_roles_and_permissions.sql` adds role and permission catalogs, a
+role-to-permission mapping, and one required role per account (default `member`).
+An account's effective permissions will be the union of its role mappings and
+its direct `permission_grants`. Existing direct capabilities are preserved as
+named permissions; existing accounts default to the member role. The known role
+names are seeded, but permission policy and role mappings are defined in ticket
+04, alongside membership gating and resource-scoped authorization. No access is
+granted merely by adding the schema.
+
+The second migration removes the reviewed username-format, membership-state, and
+token-hash-length checks; application validation belongs to the account/session
+and membership endpoints in tickets 03–04. It preserves case-insensitive username
+uniqueness, foreign keys, and the original migration's checksum. Existing
+installations apply the second migration without resetting data or the ledger.
 
 Migrations live inside the API package as `NNNN_description.sql`, starting at
 `0001`. Use `python -m bluddit_api.migrate status` or `apply` from the API environment.

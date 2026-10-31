@@ -11,9 +11,10 @@ Implement the member, organizer, quartermaster, and officer access model.
 ## Implementation
 
 - Use registration with officer approval as the release-1 membership path. New accounts remain pending and cannot read guild data.
-- Add pending registration and officer approval/rejection endpoints and account deactivation.
+- Add pending registration and officer approval/rejection endpoints and account deactivation. Validate and normalize usernames and validate membership-state transitions in the application layer.
 - Add reusable server-side permission checks for members, assigned organizers, quartermasters, and officers. Officers may correct shared records.
-- Add permission assignment endpoints; prevent removal or deactivation of the last active officer.
+- Use one role per account, role-to-permission mappings, and direct grants for additional permissions. Effective permissions are the union of the role permissions and direct grants, subject to active membership and resource scope. Define the permission catalog and default role mappings here.
+- Add role and permission assignment endpoints; prevent removal or deactivation of the last active officer.
 - Revoking membership immediately prevents further use of existing sessions. Prevent users from granting themselves permissions.
 - Document a route/action permission matrix that later feature tickets must implement. Organizer access is scoped to assigned squads/events.
 

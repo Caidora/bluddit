@@ -1,11 +1,11 @@
-"""Shared connections. Callers own a short, explicit transaction per operation."""
-from contextlib import contextmanager
+"""Shared async connections with an explicit transaction per operation."""
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 import os
 from pathlib import Path
 
 from fastapi import HTTPException, Request
-from psycopg_pool import ConnectionPool
+from psycopg_pool import AsyncConnectionPool
 
 
 @dataclass(frozen=True)
@@ -44,18 +44,20 @@ class DatabaseSettings:
 
 class Database:
     def __init__(self, settings: DatabaseSettings):
-        self.pool = ConnectionPool(conninfo="", kwargs={**settings.parameters, "autocommit": True},
-                                   min_size=1, max_size=5, timeout=3, open=False,
-                                   check=ConnectionPool.check_connection)
+        self.pool = AsyncConnectionPool(
+            conninfo="", kwargs={**settings.parameters, "autocommit": True},
+            min_size=1, max_size=5, timeout=3, open=False,
+            check=AsyncConnectionPool.check_connection,
+        )
 
-    @contextmanager
-    def transaction(self):
-        with self.pool.connection() as connection:
-            with connection.transaction():
+    @asynccontextmanager
+    async def transaction(self):
+        async with self.pool.connection() as connection:
+            async with connection.transaction():
                 yield connection
 
 
-def get_database(request: Request) -> Database:
+async def get_database(request: Request) -> Database:
     database = request.app.state.database
     if database is None:
         raise HTTPException(status_code=503, detail="Database unavailable")

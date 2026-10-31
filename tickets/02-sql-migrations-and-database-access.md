@@ -12,9 +12,9 @@ Establish explicit SQL migrations and a shared database access pattern.
 
 - Add a PostgreSQL connection pool and parameterized SQL execution with explicit transaction boundaries; use no ORM.
 - Resolve the high-level plan’s `ngpsql` ambiguity: this plan assumes a Python-compatible PostgreSQL driver for FastAPI. Record the selected driver.
-- Add numbered SQL migrations and a migration ledger. Initial tables cover accounts, permission grants, and sessions; feature tickets add their own tables.
+- Add numbered SQL migrations and a migration ledger. Initial tables cover accounts, roles, permissions, grants, and sessions; feature tickets add their own tables.
 - Accounts need a unique login identifier, display name, password hash, membership state, timestamps, and optional timezone.
-- Sessions store a hash of the session token, account reference, creation time, expiry, and revocation state. Permission grants support multiple capabilities per account.
+- Sessions store a hash of the session token, account reference, creation time, expiry, and revocation state. Each account has one role. Roles map to sets of permissions, and accounts can also have multiple direct permission grants.
 - Add a separate test database configuration and fixtures for API/database integration tests. Add a database readiness check distinct from process health.
 - Extend the CI workflow with PostgreSQL integration tests and migration checks. Wire migrations into the existing Hetzner deployment so they run once before the new application version becomes healthy, with a backup before changes to an existing database.
 
@@ -29,7 +29,7 @@ Record commands run and results; do not claim external verification that has not
 ## Completion notes
 
 Implemented Psycopg 3.3.6 (binary) with psycopg-pool 3.3.3, a lifespan-managed
-synchronous pool, explicit transaction contexts and a shared FastAPI dependency.
+async pool, explicit async transaction contexts and a shared FastAPI dependency.
 SQL values are supplied separately as parameters. No ORM or authentication routes.
 
 Added `0001_accounts_and_sessions.sql` for accounts, capabilities, and hashed-token
@@ -74,3 +74,23 @@ Image publication and deployment were correctly skipped for the PR.
 Pending: required maintainer PR review, merge and deployment through Actions, and
 production migration/readiness/rerun evidence with deployed image references.
 Do not mark Complete before production acceptance is recorded.
+
+### PR review updates — 2026-10-31
+
+Converted the shared pool, transaction dependency, FastAPI endpoints, migration
+runner/CLI, and existing integration checks to async connections and awaited I/O.
+The same three focused database checks remain; no schema-detail tests were added.
+
+Added forward migration `0002_roles_and_permissions.sql` instead of changing the
+already-recorded checksum for migration 0001. It removes the reviewed username,
+membership-state, and token-hash checks while retaining username uniqueness. It
+adds roles, permissions, role-to-permission mappings, and exactly one role per
+account, with direct grants supporting additional permissions. Existing accounts
+and grants are preserved; role-permission policy and application validation are
+implemented with the account/membership features in tickets 03–04.
+
+Review-update verification: all 9 existing API/database checks passed with the
+disposable PostgreSQL database. The production API image built successfully.
+Its migration CLI detected and applied only migration 0002 over a migration-0001
+database containing a synthetic account and two direct grants; a rerun applied
+nothing, and the account and both grants remained. `git diff --check` passed.

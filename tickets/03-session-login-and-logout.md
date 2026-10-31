@@ -11,6 +11,7 @@ Allow approved accounts to authenticate with server-managed sessions.
 ## Implementation
 
 - Implement login, logout, and current-account endpoints, plus authenticated request dependencies.
+- Validate credential input and session-token format/hash generation in the application layer.
 - Use established password hashing and cryptographically random opaque session tokens. Store only token hashes in PostgreSQL.
 - Set secure production cookie attributes, an explicit expiry, and session rotation on login. Revoke the session on logout.
 - Protect state-changing requests against CSRF and reject disallowed origins. Add basic login throttling and generic login errors.
