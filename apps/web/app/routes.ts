@@ -2,20 +2,22 @@ import { index, layout, route, type RouteConfig } from '@react-router/dev/routes
 
 export default [
   index('routes/entry.tsx'),
-  ...['login', 'register', 'pending-approval', 'logout', 'unauthorized'].map((path) =>
-    route(path, 'routes/auth.tsx', { id: path })
-  ),
+  route('login', 'routes/login.tsx'),
+  route('register', 'routes/register.tsx'),
+  route('pending-approval', 'routes/pending-approval.tsx'),
+  route('logout', 'routes/logout.tsx'),
+  route('unauthorized', 'routes/unauthorized.tsx'),
   layout('components/session.tsx', [
     layout('components/shell.tsx', [
       ...['home', 'roster', 'gear', 'events', 'crafting', 'handbook'].map((path) =>
-        route(path, 'routes/home.tsx', { id: path })
+        route(path, `routes/${path}.tsx`)
       ),
       layout('routes/membership-gate.tsx', [
-        route('admin/accounts', 'routes/accounts.tsx', { id: 'accounts' }),
-        route('admin/accounts/:accountId', 'routes/accounts.tsx', { id: 'account' }),
+        route('admin/accounts', 'routes/accounts.tsx'),
+        route('admin/accounts/:accountId', 'routes/account.tsx'),
       ]),
       layout('routes/policy-gate.tsx', [route('admin/permissions', 'routes/permissions.tsx')]),
     ]),
   ]),
-  route('*', 'routes/auth.tsx', { id: 'not-found' }),
+  route('*', 'routes/not-found.tsx'),
 ] satisfies RouteConfig;

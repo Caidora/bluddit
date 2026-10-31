@@ -207,8 +207,54 @@ test('return navigation rejects protocol-relative and control-character URLs', a
       '/\\example.com',
       '/\n/example.com',
       '/logout',
+      '/LoGoUt/',
+      '/register/',
+      '/%6cogout',
+      '/events/../logout',
+      '/%E0%A4%A',
       '/events?view=upcoming',
     ].map(safeReturn);
-  }, '/app/routes/auth.tsx');
-  expect(results).toEqual(['/home', '/home', '/home', '/home', '/events?view=upcoming']);
+  }, '/app/features/auth/safe-return.ts');
+  expect(results).toEqual([
+    '/home',
+    '/home',
+    '/home',
+    '/home',
+    '/home',
+    '/home',
+    '/home',
+    '/home',
+    '/home',
+    '/events?view=upcoming',
+  ]);
+});
+
+for (const [path, heading] of [
+  ['/login/', 'Log in'],
+  ['/REGISTER/', 'Join Bluds'],
+  ['/pending-approval/', 'Awaiting approval'],
+  ['/unauthorized/', 'Access restricted'],
+] as const) {
+  test(`router renders the matched auth screen at ${path}`, async ({ page, context }) => {
+    await mockApi(context);
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    if (heading === 'Join Bluds') {
+      await expect(page.getByLabel('Display name', { exact: true })).toBeVisible();
+      await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('minlength', '12');
+    }
+  });
+}
+
+test('trailing slash logout ends the session and member routes keep their identity', async ({
+  page,
+  context,
+}) => {
+  const state = await mockApi(context, member);
+  await page.goto('/EVENTS/');
+  await expect(page.getByRole('heading', { name: 'Events', exact: true })).toBeVisible();
+  await page.goto('/logout/');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('heading', { name: 'Log in', exact: true })).toBeVisible();
+  expect(state.account).toBeNull();
 });

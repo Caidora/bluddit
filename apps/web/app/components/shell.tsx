@@ -1,15 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router';
-import {
-  Home,
-  Users,
-  Crosshair,
-  CalendarDays,
-  Hammer,
-  BookOpen,
-  ShieldCheck,
-  KeyRound,
-  LogOut,
-} from 'lucide-react';
+import { ShieldCheck, KeyRound, LogOut } from 'lucide-react';
+import { destinations } from '@/navigation';
 import {
   Sidebar,
   SidebarProvider,
@@ -30,44 +21,11 @@ import { Separator } from '@/components/ui/separator';
 import { Brand } from './patterns';
 import { useAccount } from './session';
 
-export const destinations = [
-  { path: '/home', label: 'Home', icon: Home, description: 'Your guild, all in one place.' },
-  {
-    path: '/roster',
-    label: 'Roster & Squads',
-    icon: Users,
-    description: 'Find your people and build a balanced group.',
-  },
-  {
-    path: '/gear',
-    label: 'Gear & Farming',
-    icon: Crosshair,
-    description: 'Plan upgrades and make each run count.',
-  },
-  {
-    path: '/events',
-    label: 'Events',
-    icon: CalendarDays,
-    description: 'Good runs start with a plan.',
-  },
-  {
-    path: '/crafting',
-    label: 'Crafting Directory',
-    icon: Hammer,
-    description: 'Find the right hands for the job.',
-  },
-  {
-    path: '/handbook',
-    label: 'Guild Handbook',
-    icon: BookOpen,
-    description: 'How we progress together and keep it friendly.',
-  },
-];
 function Navigation() {
   const account = useAccount();
   const { setOpenMobile } = useSidebar();
   const items = [
-    ...destinations,
+    ...Object.values(destinations),
     ...(account.permissions.includes('accounts.manage')
       ? [{ path: '/admin/accounts', label: 'Membership', icon: ShieldCheck }]
       : []),

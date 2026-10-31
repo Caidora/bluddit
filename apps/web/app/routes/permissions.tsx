@@ -1,1 +1,1 @@
-export { Permissions as default } from './accounts';
+export { Permissions as default } from '@/features/permissions/permissions';

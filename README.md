@@ -45,8 +45,9 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 
 The application includes health/readiness checks, authentication/membership APIs,
 an account-recovery CLI, and ticket 05 account screens. The frontend uses shadcn/ui
-and TanStack Query with a shared typed API interface. The
-[permission matrix](docs/permissions.md) documents current gates
+and TanStack Query with shared HTTP/session handling and feature-owned typed API
+modules. See the [web README](apps/web/README.md) for frontend architecture
+conventions. The [permission matrix](docs/permissions.md) documents current gates
 and resource checks required by later features.
 The Python database driver is Psycopg 3, with a shared connection pool, explicit
 SQL transactions, and numbered migrations. There is no ORM.

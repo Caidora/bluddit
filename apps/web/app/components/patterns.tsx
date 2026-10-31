@@ -4,7 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
-import { ApiError } from '@/lib/api';
+import { ApiError } from '@/lib/http';
 import { CircleAlert, Orbit } from 'lucide-react';
 
 export function PageTitle({

@@ -67,3 +67,29 @@ Local verification on 2026-11-01:
 Pending: maintainer PR review, Actions deployment, ticket 04's outstanding recorded
 acceptance, and ticket 05 production UI acceptance using dedicated test records.
 No production deployment or verification is claimed; do not mark Complete yet.
+
+### PR review follow-up (2026-11-01)
+
+- Replaced pathname-based screen dispatch with thin route modules, including
+  explicit login/registration modes and member placeholder metadata. Trailing
+  slashes and case variants now follow React Router matching. Return navigation
+  also excludes normalized authentication destinations.
+- Background session outages preserve the mounted shell and local dialog/form
+  state with a retry notice; confirmed session loss still removes member data.
+  Account details likewise retain their controls during a failed background fetch.
+- Grouped accounts, authentication, and permissions into feature modules. Shared
+  HTTP transport and QueryClient defaults remain in `lib`; session coordination
+  lives with authentication. Account mutations invalidate lists, the target detail,
+  and session data without invalidating unrelated feature or identity caches.
+- Credential snapshots are written in submit handlers and cleared on settlement
+  or unmount, rather than written during render.
+- Added the [web architecture README](../apps/web/README.md), linked from the main
+  README and operations runbook, covering module boundaries, routing, cache
+  ownership, session failures, and feature development conventions.
+- Verification: `make verify` passed against a temporary isolated PostgreSQL 17
+  container: frontend types/production build, all 28 Playwright checks (including
+  the real account flow), 20 API/unit tests, 32 database tests, 18 infrastructure
+  tests, and both Compose configurations. The container was removed afterward.
+  Changed frontend files were formatted with Prettier; no dependency was added.
+  Final encoded/normalized return-path hardening also passed frontend type checking
+  and the targeted browser regression check. `git diff --check` passed.

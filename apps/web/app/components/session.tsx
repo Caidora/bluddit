@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, Outlet, useLocation, useOutletContext } from 'react-router';
-import { createQueryClient, connectSession, meOptions, keys } from '@/lib/queries';
-import type { CurrentAccount } from '@/lib/api';
+import { createQueryClient } from '@/lib/query-client';
+import { connectSession, meOptions, authKeys } from '@/features/auth/queries';
+import type { CurrentAccount } from '@/features/auth/types';
 import { ErrorNotice, Loading } from './patterns';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -18,10 +19,10 @@ export function SessionBoundary() {
   const client = useQueryClient();
   const location = useLocation();
   useEffect(() => {
-    void client.invalidateQueries({ queryKey: keys.me });
+    void client.invalidateQueries({ queryKey: authKeys.me });
   }, [client, location.pathname]);
   if (session.isPending) return <Loading label="Loading your session…" />;
-  if (session.isError)
+  if (session.isError && !session.data)
     return (
       <div className="mx-auto max-w-lg p-6">
         <ErrorNotice
@@ -39,12 +40,28 @@ export function SessionBoundary() {
         replace
       />
     );
-  return <Outlet context={session.data} />;
+  // Keep the outlet in the same position when a background refresh fails.
+  // Confirmed session loss sets data to null and takes the redirect above.
+  return (
+    <>
+      {session.isError && (
+        <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-lg">
+          <ErrorNotice
+            error={session.error}
+            retry={() => {
+              void session.refetch();
+            }}
+          />
+        </div>
+      )}
+      <Outlet context={session.data} />
+    </>
+  );
 }
 export function Entry() {
   const session = useQuery(meOptions());
   if (session.isPending) return <Loading label="Loading your session…" />;
-  if (session.isError)
+  if (session.isError && !session.data)
     return (
       <div className="mx-auto max-w-lg p-6">
         <ErrorNotice

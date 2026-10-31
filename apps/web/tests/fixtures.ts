@@ -1,5 +1,6 @@
 import { expect, type BrowserContext, type Page } from '@playwright/test';
-import type { Account, CurrentAccount, AccountAction, Role } from '../app/lib/api';
+import type { Account, AccountAction, Role } from '../app/features/accounts/types';
+import type { CurrentAccount } from '../app/features/auth/types';
 
 export const member: CurrentAccount = {
   id: 1,

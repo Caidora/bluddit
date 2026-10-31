@@ -18,11 +18,11 @@ test('concurrent expired requests share one refresh and retry at most once', asy
     return route.fallback();
   });
   const ids = await page.evaluate(async (path) => {
-    const { api } = await import(path);
-    return Promise.all([api.account(2), api.account(2)]).then((accounts) =>
+    const { accountsApi } = await import(path);
+    return Promise.all([accountsApi.account(2), accountsApi.account(2)]).then((accounts) =>
       accounts.map((account) => account.id)
     );
-  }, '/app/lib/api.ts');
+  }, '/app/features/accounts/api.ts');
   expect(ids).toEqual([2, 2]);
   expect(failures).toBe(2);
   expect(state.tokenCount - before).toBe(1);
@@ -41,13 +41,13 @@ test('permanent 401 performs bounded refresh/request retries and requires login'
     return route.fulfill({ status: 401, json: { detail: 'Authentication required' } });
   });
   await page.evaluate(async (path) => {
-    const { api } = await import(path);
+    const { accountsApi } = await import(path);
     try {
-      await api.account(2);
+      await accountsApi.account(2);
     } catch {
       /* expected denied request */
     }
-  }, '/app/lib/api.ts');
+  }, '/app/features/accounts/api.ts');
   await expect(page).toHaveURL(/\/login/);
   expect(attempts).toBe(2);
   expect(state.tokenCount).toBe(2);
@@ -62,26 +62,33 @@ test('session loss clears query data and credential mutations cache no secrets',
   await expect(page.getByRole('heading', { name: 'Welcome, River' })).toBeVisible();
   const result = await page.evaluate(
     async (paths) => {
-      const { api } = await import(paths.api);
-      const queries = await import(paths.queries);
-      const client = queries.createQueryClient();
-      const disconnect = queries.connectSession(client);
-      await client.fetchQuery(queries.meOptions());
-      await client.fetchQuery(queries.accountsOptions(1, { limit: 20, offset: 0 }));
+      const { sessionApi } = await import(paths.session);
+      const auth = await import(paths.auth);
+      const accounts = await import(paths.accounts);
+      const { createQueryClient } = await import(paths.client);
+      const client = createQueryClient();
+      const disconnect = auth.connectSession(client);
+      await client.fetchQuery(auth.meOptions());
+      await client.fetchQuery(accounts.accountsOptions(1, { limit: 20, offset: 0 }));
       const mutation = client.getMutationCache().build(
         client,
-        queries.loginOptions(() => ({ username: 'river', password: 'never-cache-this-password' }))
+        auth.loginOptions(() => ({ username: 'river', password: 'never-cache-this-password' }))
       );
       await mutation.execute(undefined);
       const mutationState = JSON.stringify(mutation.state);
-      await api.logout();
+      await sessionApi.logout();
       const protectedQueries = client.getQueryCache().findAll({ queryKey: ['member'] }).length;
-      const currentAccount = client.getQueryData(queries.keys.me);
+      const currentAccount = client.getQueryData(auth.authKeys.me);
       disconnect();
       client.clear();
       return { mutationState, protectedQueries, currentAccount };
     },
-    { api: '/app/lib/api.ts', queries: '/app/lib/queries.ts' }
+    {
+      session: '/app/features/auth/session.ts',
+      auth: '/app/features/auth/queries.ts',
+      accounts: '/app/features/accounts/queries.ts',
+      client: '/app/lib/query-client.ts',
+    }
   );
   expect(result.mutationState).not.toContain('never-cache-this-password');
   expect(result.mutationState).not.toContain('access_token');
@@ -180,4 +187,98 @@ test('account pagination and filter are encoded centrally', async ({ page, conte
   await page.getByLabel('Membership state', { exact: true }).selectOption('active');
   await expect.poll(() => searches.at(-1)).toContain('membership_state=active');
   expect(searches.at(-1)).toContain('offset=0');
+});
+
+test('background session outages preserve the shell and an open confirmation through recovery', async ({
+  page,
+  context,
+}) => {
+  await mockApi(context, officer());
+  await page.goto('/admin/accounts/2');
+  await page.getByRole('button', { name: 'Reject application' }).click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({ status: 503, json: { detail: 'Temporary session outage' } })
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByRole('alert', { includeHidden: true })).toContainText(
+    'Temporary session outage'
+  );
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Log out', exact: true, includeHidden: true })
+  ).toBeAttached();
+  await page.unroute('**/api/auth/me');
+  // A second focus refresh recovers without closing the modal to reach the retry button.
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByRole('alert', { includeHidden: true })).toHaveCount(0);
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Activate account', exact: true })).toBeVisible();
+});
+
+test('confirmed session loss still removes a cached shell after an outage', async ({
+  page,
+  context,
+}) => {
+  const state = await mockApi(context, officer());
+  await page.goto('/admin/accounts/2');
+  await expect(page.getByRole('heading', { name: 'Fern', exact: true })).toBeVisible();
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({ status: 503, json: { detail: 'Temporary session outage' } })
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')));
+  await expect(page.getByRole('alert')).toContainText('Temporary session outage');
+  state.account = null;
+  await page.unroute('**/api/auth/me');
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByRole('heading', { name: 'Fern', exact: true })).toHaveCount(0);
+});
+
+test('account actions leave unrelated feature and identity caches fresh', async ({
+  page,
+  context,
+}) => {
+  await mockApi(context, officer());
+  await page.goto('/home');
+  await expect(page.getByRole('heading', { name: 'Welcome, River' })).toBeVisible();
+  const result = await page.evaluate(
+    async (paths) => {
+      const { createQueryClient } = await import(paths.client);
+      const { accountKeys, accountActionOptions } = await import(paths.accounts);
+      const { authKeys } = await import(paths.auth);
+      const { policyKeys } = await import(paths.policy);
+      const client = createQueryClient();
+      const affected = [
+        accountKeys.list(1, { limit: 20, offset: 0 }),
+        accountKeys.list(1, { limit: 20, offset: 20 }),
+        accountKeys.detail(1, 2),
+        authKeys.me,
+      ];
+      const unrelated = [
+        accountKeys.detail(1, 3),
+        accountKeys.list(9, { limit: 20, offset: 0 }),
+        policyKeys.all(1),
+        ['member', 1, 'events'],
+      ];
+      [...affected, ...unrelated].forEach((key) => client.setQueryData(key, { cached: true }));
+      const mutation = client.getMutationCache().build(client, accountActionOptions(client, 1, 2));
+      await mutation.execute('approve');
+      const result = {
+        affected: affected.map((key) => client.getQueryState(key)?.isInvalidated),
+        unrelated: unrelated.map((key) => client.getQueryState(key)?.isInvalidated),
+      };
+      client.clear();
+      return result;
+    },
+    {
+      client: '/app/lib/query-client.ts',
+      accounts: '/app/features/accounts/queries.ts',
+      auth: '/app/features/auth/queries.ts',
+      policy: '/app/features/permissions/queries.ts',
+    }
+  );
+  expect(result.affected).toEqual([true, true, true, true]);
+  expect(result.unrelated).toEqual([false, false, false, false]);
 });

@@ -511,9 +511,15 @@ features show temporary empty states. Password recovery remains the administrati
 CLI workflow above.
 
 The frontend uses local shadcn/ui primitives, Tailwind CSS, and a dark theme.
-`apps/web/app/lib/api.ts` defines the single typed frontend API interface and all
-HTTP/session handling; `queries.ts` owns TanStack Query keys/options and mutation
-invalidation. Routes and components do not call fetch or duplicate API interfaces.
+`apps/web/app/features/` groups screens, API contracts, and query options by feature.
+`lib/http.ts` owns shared HTTP handling; `features/auth/session.ts` owns in-memory
+tokens and coordinated refresh/logout. Feature `queries.ts` modules own query keys
+and mutation invalidation. Routes are thin screen entry points; components do not
+call fetch or duplicate API interfaces. Account writes invalidate account lists, the
+affected detail, and session data without invalidating unrelated features. Temporary
+background session errors preserve the mounted screen and show a retry notice;
+confirmed session loss still clears access. See the
+[web architecture README](../apps/web/README.md) for conventions and rationale.
 Protected query keys include the acting account ID. Logout/session changes cancel
 protected requests and remove cached member data. No query persistence is enabled;
 credentials are read by mutation functions without entering mutation variables,

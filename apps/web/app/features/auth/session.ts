@@ -1,62 +1,8 @@
-/** The sole frontend API contract. HTTP details and session tokens stay here. */
-export type MembershipState = 'pending' | 'active' | 'rejected' | 'inactive';
-export type Role = 'member' | 'officer' | 'guild_master';
-export interface Account {
-  id: number;
-  username: string;
-  display_name: string;
-  membership_state: MembershipState;
-  role_name: Role;
-  timezone: string | null;
-}
-export interface CurrentAccount extends Account {
-  permissions: string[];
-}
-export interface Credentials {
-  username: string;
-  password: string;
-}
-export interface Registration extends Credentials {
-  display_name: string;
-}
-interface TokenResponse {
-  access_token: string;
-  token_type: 'Bearer';
-  expires_in: number;
-}
-export interface AccountFilter {
-  membership_state?: MembershipState;
-  limit: number;
-  offset: number;
-}
-export interface AccountPage {
-  accounts: Account[];
-  limit: number;
-  offset: number;
-}
-export interface PermissionPolicy {
-  permissions: string[];
-  roles: Record<Role, string[]>;
-}
-export type AccountAction =
-  | 'approve'
-  | 'reject'
-  | 'deactivate'
-  | 'activate'
-  | 'promote-to-officer'
-  | 'demote-to-member'
-  | 'pass-guild-master';
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public retryAfter?: string
-  ) {
-    super(message);
-  }
-}
+import { ApiError, send } from '@/lib/http';
+import type { Account } from '@/features/accounts/types';
+import type { Credentials, CurrentAccount, Registration, TokenResponse } from './types';
 
-type SessionEvent = { account: CurrentAccount | null; logoutFailed?: boolean };
+type SessionEvent = { account: CurrentAccount | null };
 type SessionMessage =
   | { type: 'logout' }
   | {
@@ -109,32 +55,6 @@ function lock<T>(callback: () => Promise<T>): Promise<T> {
 function assertEpoch(expected: number) {
   if (epoch !== expected) throw new DOMException('Session changed', 'AbortError');
 }
-async function send<T>(path: string, options: RequestInit = {}): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(path, {
-      ...options,
-      credentials: 'same-origin',
-      headers: {
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(options.method && options.method !== 'GET' ? { 'X-CSRF-Protection': '1' } : {}),
-        ...options.headers,
-      },
-    });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') throw error;
-    throw new ApiError(0, 'Couldn’t connect. Check your connection and try again.');
-  }
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new ApiError(
-      response.status,
-      typeof body?.detail === 'string' ? body.detail : 'The request could not be completed.',
-      response.headers.get('Retry-After') ?? undefined
-    );
-  }
-  return response.status === 204 ? (undefined as T) : response.json();
-}
 function acceptToken(
   result: TokenResponse,
   type: 'token' | 'login' = 'token',
@@ -178,7 +98,7 @@ async function refresh(failedToken?: string | null) {
   });
   return refreshPromise;
 }
-async function authenticated<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function authenticated<T>(path: string, options: RequestInit = {}): Promise<T> {
   const expected = epoch;
   if (!token || expiresAt <= Date.now() + 5000) await refresh();
   assertEpoch(expected);
@@ -212,7 +132,7 @@ async function authenticated<T>(path: string, options: RequestInit = {}): Promis
     }
   }
 }
-export const api = {
+export const sessionApi = {
   subscribe(listener: (event: SessionEvent) => void) {
     listeners.add(listener);
     return () => {
@@ -257,22 +177,5 @@ export const api = {
     await lock(async () => {
       await send<void>('/api/auth/token', { method: 'DELETE' });
     });
-  },
-  accounts(filter: AccountFilter, signal?: AbortSignal) {
-    const params = new URLSearchParams({
-      limit: String(filter.limit),
-      offset: String(filter.offset),
-    });
-    if (filter.membership_state) params.set('membership_state', filter.membership_state);
-    return authenticated<AccountPage>(`/api/accounts?${params}`, { signal });
-  },
-  account(id: number, signal?: AbortSignal) {
-    return authenticated<Account>(`/api/accounts/${id}`, { signal });
-  },
-  permissions(signal?: AbortSignal) {
-    return authenticated<PermissionPolicy>('/api/permissions', { signal });
-  },
-  accountAction(id: number, action: AccountAction) {
-    return authenticated<Account>(`/api/accounts/${id}/${action}`, { method: 'POST' });
   },
 };
