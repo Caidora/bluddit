@@ -13,7 +13,7 @@ Base-image patch updates are picked up by a new build, not by restarting a relea
 
 The Python PostgreSQL driver is **Psycopg 3.3.6** (binary distribution), with
 **psycopg-pool 3.3.3**, explicit parameterized SQL, and no ORM. Numbered SQL
-migrations introduce accounts, roles, permissions, grants, and sessions. Authentication
+migrations introduce accounts, roles, role permissions, and sessions. Authentication
 endpoints remain in ticket 03.
 
 ## Frontend rendering
@@ -239,10 +239,12 @@ async connections. No SQL string interpolation or ORM is used.
 
 Migration `0001_accounts_and_sessions.sql` includes role and permission catalogs,
 a role-to-permission mapping, and one required role per account (default `member`).
-An account's effective permissions will be the union of its role mappings and
-its direct `permission_grants`. The known role names are seeded, but permission
-policy and role mappings are defined in ticket 04, alongside membership gating
-and resource-scoped authorization. No access is granted merely by adding the schema.
+The seeded roles are Guild Master (`guild_master`), Officer (`officer`), and Member
+(`member`). Accounts inherit all permissions from their single role; there are no
+direct account grants. Permission policy and role mappings are defined in ticket
+04, alongside membership gating and resource-scoped authorization. Organizer and
+quartermaster duties are permission/scoped-assignment concerns, not account roles.
+No access is granted merely by adding the schema.
 
 Username formatting, membership-state validation, and token-hash-length validation
 belong to the application endpoints in tickets 03–04. The migration retains

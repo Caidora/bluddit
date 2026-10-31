@@ -12,9 +12,9 @@ Establish explicit SQL migrations and a shared database access pattern.
 
 - Add a PostgreSQL connection pool and parameterized SQL execution with explicit transaction boundaries; use no ORM.
 - Resolve the high-level plan’s `ngpsql` ambiguity: this plan assumes a Python-compatible PostgreSQL driver for FastAPI. Record the selected driver.
-- Add numbered SQL migrations and a migration ledger. Initial tables cover accounts, roles, permissions, grants, and sessions; feature tickets add their own tables.
+- Add numbered SQL migrations and a migration ledger. Initial tables cover accounts, roles, role permissions, and sessions; feature tickets add their own tables.
 - Accounts need a unique login identifier, display name, password hash, membership state, timestamps, and optional timezone.
-- Sessions store a hash of the session token, account reference, creation time, expiry, and revocation state. Each account has one role. Roles map to sets of permissions, and accounts can also have multiple direct permission grants.
+- Sessions store a hash of the session token, account reference, creation time, expiry, and revocation state. Each account has one role. The roles are Guild Master, Officer, and Member. Accounts inherit permissions only through their role.
 - Add a separate test database configuration and fixtures for API/database integration tests. Add a database readiness check distinct from process health.
 - Extend the CI workflow with PostgreSQL integration tests and migration checks. Wire migrations into the existing Hetzner deployment so they run once before the new application version becomes healthy, with a backup before changes to an existing database.
 
@@ -86,8 +86,9 @@ The same three focused database checks remain; no schema-detail tests were added
 Updated migration `0001_accounts_and_sessions.sql` directly, since it has not run
 in production. It omits the reviewed username, membership-state, and token-hash
 checks while retaining username uniqueness. It includes roles, permissions,
-role-to-permission mappings, and exactly one role per account, with direct grants
-supporting additional permissions. Role-permission policy and application
+role-to-permission mappings, and exactly one role per account. The seeded roles
+are Guild Master, Officer, and Member; permissions come only from role mappings,
+with no direct account grants. Role-permission policy and application
 validation are implemented with the account/membership features in tickets 03–04.
 Recorded the migration-editing rule in `contributions.md`: revise an existing
 migration within its PR until it has run in production; only then add a new one.
@@ -97,3 +98,9 @@ Review-update verification: all 9 existing API/database checks passed with the
 disposable PostgreSQL database after the async conversion. The production API
 image built successfully. The consolidated migration is verified from an empty
 disposable database and rerun without changes. No schema-detail tests were added.
+
+Latest role-model review: migration 0001 now seeds only `guild_master`, `officer`,
+and `member`, and omits the direct permission-grants table. Accounts receive all
+permissions from their single role through `role_permissions`. Updated the
+operations docs and ticket 04 accordingly. The same three focused migration /
+readiness / rollback checks passed against a fresh disposable database.

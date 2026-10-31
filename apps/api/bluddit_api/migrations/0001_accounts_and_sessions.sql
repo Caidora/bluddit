@@ -1,7 +1,7 @@
 CREATE TABLE roles (
     name text PRIMARY KEY
 );
-INSERT INTO roles (name) VALUES ('member'), ('organizer'), ('quartermaster'), ('officer');
+INSERT INTO roles (name) VALUES ('guild_master'), ('officer'), ('member');
 
 CREATE TABLE permissions (
     name text PRIMARY KEY
@@ -25,12 +25,6 @@ CREATE TABLE accounts (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX accounts_username_unique ON accounts (lower(username));
-
-CREATE TABLE permission_grants (
-    account_id bigint NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-    permission_name text NOT NULL REFERENCES permissions(name) ON DELETE CASCADE,
-    PRIMARY KEY (account_id, permission_name)
-);
 
 CREATE TABLE sessions (
     id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
