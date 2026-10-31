@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
+from bluddit_api.models.accounts import Account
 from bluddit_api.utils.authorization import require_permission, require_guild_master
 from bluddit_api.utils.dependencies import AuthRepositoryDep, MembershipRepositoryDep
 from bluddit_api.utils.permissions import Permission, Role, RolePolicy
@@ -15,10 +16,10 @@ from bluddit_api.utils.security import MembershipState
 router = APIRouter(prefix="/api")
 AccountId = Annotated[int, Path(gt=0)]
 AccountManager = Annotated[
-    dict, Depends(require_permission(Permission.ACCOUNTS_MANAGE))
+    Account, Depends(require_permission(Permission.ACCOUNTS_MANAGE))
 ]
-GuildMaster = Annotated[dict, Depends(require_guild_master)]
-PolicyReader = Annotated[dict, Depends(require_permission(Permission.POLICY_READ))]
+GuildMaster = Annotated[Account, Depends(require_guild_master)]
+PolicyReader = Annotated[Account, Depends(require_permission(Permission.POLICY_READ))]
 
 
 @router.get("/accounts")
@@ -50,9 +51,9 @@ async def approve(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
+    if target.role_name == Role.GUILD_MASTER:
         raise HTTPException(403, "Guild Master changes require transfer")
-    if target["membership_state"] != MembershipState.PENDING:
+    if target.membership_state != MembershipState.PENDING:
         raise HTTPException(409, "Invalid membership transition")
     result = await repository.approve(account_id)
     if result is None:
@@ -70,9 +71,9 @@ async def reject(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
+    if target.role_name == Role.GUILD_MASTER:
         raise HTTPException(403, "Guild Master changes require transfer")
-    if target["membership_state"] != MembershipState.PENDING:
+    if target.membership_state != MembershipState.PENDING:
         raise HTTPException(409, "Invalid membership transition")
     result = await repository.reject(account_id)
     if result is None:
@@ -91,9 +92,9 @@ async def deactivate(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
+    if target.role_name == Role.GUILD_MASTER:
         raise HTTPException(403, "Guild Master changes require transfer")
-    if target["membership_state"] != MembershipState.ACTIVE:
+    if target.membership_state != MembershipState.ACTIVE:
         raise HTTPException(409, "Invalid membership transition")
     result = await repository.deactivate(account_id)
     if result is None:
@@ -109,9 +110,9 @@ async def activate(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
+    if target.role_name == Role.GUILD_MASTER:
         raise HTTPException(403, "Guild Master changes require transfer")
-    if target["membership_state"] not in (
+    if target.membership_state not in (
         MembershipState.REJECTED,
         MembershipState.INACTIVE,
     ):
@@ -129,7 +130,7 @@ async def promote_to_officer(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] != Role.MEMBER:
+    if target.role_name != Role.MEMBER:
         raise HTTPException(409, "Invalid role transition")
     result = await repository.promote_to_officer(account_id)
     if result is None:
@@ -144,7 +145,7 @@ async def demote_to_member(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] != Role.OFFICER:
+    if target.role_name != Role.OFFICER:
         raise HTTPException(409, "Invalid role transition")
     result = await repository.demote_to_member(account_id)
     if result is None:
@@ -159,12 +160,12 @@ async def pass_guild_master(
     target = await repository.get_account(account_id)
     if target is None:
         raise HTTPException(404, "Account not found")
-    if target["role_name"] == Role.GUILD_MASTER:
+    if target.role_name == Role.GUILD_MASTER:
         raise HTTPException(403, "Guild Master changes require transfer")
-    if target["membership_state"] != MembershipState.ACTIVE:
+    if target.membership_state != MembershipState.ACTIVE:
         raise HTTPException(409, "Guild Master recipient must be active")
     try:
-        result = await repository.pass_guild_master(actor["id"], account_id)
+        result = await repository.pass_guild_master(actor.id, account_id)
     except GuildMasterChangedError:
         raise HTTPException(
             403, "Only the current Guild Master may pass the role"

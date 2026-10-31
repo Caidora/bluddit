@@ -1,8 +1,9 @@
 """Operation-level membership SQL and atomic persistence boundaries."""
 
-from psycopg.rows import dict_row
+from psycopg.rows import class_row
 
 from bluddit_api.database import Database
+from bluddit_api.models.accounts import Account, AccountState
 
 
 class GuildMasterChangedError(Exception):
@@ -13,7 +14,9 @@ class MembershipRepository:
     def __init__(self, database: Database):
         self.database = database
 
-    async def register(self, username: str, display_name: str, password_hash: str):
+    async def register(
+        self, username: str, display_name: str, password_hash: str
+    ) -> Account:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -27,12 +30,14 @@ class MembershipRepository:
                     "password_hash": password_hash,
                 },
             )
-            cursor.row_factory = dict_row
-            return await cursor.fetchone()
+            cursor.row_factory = class_row(Account)
+            account = await cursor.fetchone()
+            assert account is not None  # INSERT ... RETURNING always produces a row.
+            return account
 
     async def list_accounts(
         self, membership_state: str | None, limit: int, offset: int
-    ):
+    ) -> list[Account]:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -47,10 +52,10 @@ class MembershipRepository:
                     "offset": offset,
                 },
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             return await cursor.fetchall()
 
-    async def get_account(self, account_id: int):
+    async def get_account(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -59,10 +64,10 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             return await cursor.fetchone()
 
-    async def approve(self, account_id: int):
+    async def approve(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -72,11 +77,11 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account
 
-    async def reject(self, account_id: int):
+    async def reject(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -86,11 +91,11 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account
 
-    async def deactivate(self, account_id: int):
+    async def deactivate(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             await connection.execute("""SELECT pg_advisory_xact_lock(730003)""")
             cursor = await connection.execute(
@@ -105,11 +110,11 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account
 
-    async def activate(self, account_id: int):
+    async def activate(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -119,11 +124,11 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account
 
-    async def promote_to_officer(self, account_id: int):
+    async def promote_to_officer(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -133,11 +138,11 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account
 
-    async def demote_to_member(self, account_id: int):
+    async def demote_to_member(self, account_id: int) -> Account | None:
         async with self.database.transaction() as connection:
             await connection.execute("""SELECT pg_advisory_xact_lock(730003)""")
             cursor = await connection.execute(
@@ -152,11 +157,11 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account
 
-    async def pass_guild_master(self, actor_id: int, account_id: int):
+    async def pass_guild_master(self, actor_id: int, account_id: int) -> Account | None:
         if actor_id == account_id:
             return None
         async with self.database.transaction() as connection:
@@ -168,17 +173,17 @@ class MembershipRepository:
                 """,
                 {"account_ids": [actor_id, account_id]},
             )
-            cursor.row_factory = dict_row
-            locked = {account["id"]: account for account in await cursor.fetchall()}
+            cursor.row_factory = class_row(AccountState)
+            locked = {account.id: account for account in await cursor.fetchall()}
             actor = locked.get(actor_id)
             if (
                 actor is None
-                or actor["role_name"] != "guild_master"
-                or actor["membership_state"] != "active"
+                or actor.role_name != "guild_master"
+                or actor.membership_state != "active"
             ):
                 raise GuildMasterChangedError
             target = locked.get(account_id)
-            if target is None or target["membership_state"] != "active":
+            if target is None or target.membership_state != "active":
                 return None
             # Both writes and the current-GM check share this transaction.
             # Demote first to satisfy the unique index; a failure rolls both back.
@@ -197,6 +202,6 @@ class MembershipRepository:
                 """,
                 {"account_id": account_id},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             account = await cursor.fetchone()
         return account

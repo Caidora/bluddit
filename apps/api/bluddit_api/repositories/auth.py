@@ -1,8 +1,9 @@
 """Authentication queries and their transaction boundaries."""
 
-from psycopg.rows import dict_row
+from psycopg.rows import class_row
 
 from bluddit_api.database import Database
+from bluddit_api.models.accounts import Account, AccountCredentials
 from bluddit_api.utils.security import MembershipState
 
 
@@ -10,7 +11,7 @@ class AuthRepository:
     def __init__(self, database: Database):
         self.database = database
 
-    async def get_account_credentials(self, username: str):
+    async def get_account_credentials(self, username: str) -> AccountCredentials | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -20,10 +21,12 @@ class AuthRepository:
                 """,
                 {"username": username},
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(AccountCredentials)
             return await cursor.fetchone()
 
-    async def get_account_for_hashed_access_token(self, hashed: bytes):
+    async def get_account_for_hashed_access_token(
+        self, hashed: bytes
+    ) -> Account | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
@@ -40,7 +43,7 @@ class AuthRepository:
                     "membership_state": MembershipState.ACTIVE.value,
                 },
             )
-            cursor.row_factory = dict_row
+            cursor.row_factory = class_row(Account)
             return await cursor.fetchone()
 
     async def create_session(
@@ -107,7 +110,7 @@ class AuthRepository:
             await self._insert_access(connection, session[1], session[0], access_hash)
         return True
 
-    async def revoke_session(self, hashed: bytes):
+    async def revoke_session(self, hashed: bytes) -> None:
         async with self.database.transaction() as connection:
             await connection.execute(
                 """
@@ -117,7 +120,7 @@ class AuthRepository:
                 {"token_hash": hashed},
             )
 
-    async def revoke_account_sessions(self, account_id: int):
+    async def revoke_account_sessions(self, account_id: int) -> None:
         async with self.database.transaction() as connection:
             await connection.execute(
                 """

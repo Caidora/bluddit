@@ -10,7 +10,7 @@ class AccountRepository:
 
     async def create_first_officer(
         self, username: str, display_name: str, password_hash: str
-    ):
+    ) -> None:
         async with self.database.transaction() as connection:
             await connection.execute("""SELECT pg_advisory_xact_lock(730003)""")
             cursor = await connection.execute(
@@ -36,7 +36,7 @@ class AccountRepository:
                 },
             )
 
-    async def reset_password(self, username: str, password_hash: str):
+    async def reset_password(self, username: str, password_hash: str) -> None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """

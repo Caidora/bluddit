@@ -1,10 +1,13 @@
 """Login, refresh, logout, and current-account HTTP routes."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 from psycopg.errors import UniqueViolation
 from starlette.concurrency import run_in_threadpool
 
+from bluddit_api.models.accounts import Account
 from bluddit_api.utils.dependencies import AuthRepositoryDep, MembershipRepositoryDep
 from bluddit_api.utils.permissions import RolePolicy
 from bluddit_api.utils.auth import (
@@ -87,19 +90,19 @@ async def login(
     async with request.app.state.password_slots:
         valid = await run_in_threadpool(
             verify_password,
-            account["password_hash"] if account else DUMMY_HASH,
+            account.password_hash if account else DUMMY_HASH,
             body.password.get_secret_value(),
         )
     if (
         not valid
         or account is None
-        or account["membership_state"] != MembershipState.ACTIVE
+        or account.membership_state != MembershipState.ACTIVE
     ):
         raise HTTPException(401, "Invalid username or password")
     refresh, access = new_token(), new_token()
     created = await repository.create_session(
-        account["id"],
-        account["password_hash"],
+        account.id,
+        account.password_hash,
         token_hash(refresh),
         token_hash(access),
     )
@@ -147,8 +150,8 @@ async def logout(request: Request, repository: AuthRepositoryDep):
 
 
 @router.get("/me")
-async def me(account=Depends(current_account)):
+async def me(account: Annotated[Account, Depends(current_account)]):
     return {
-        **account,
-        "permissions": sorted(RolePolicy.permissions(account["role_name"])),
+        **account.model_dump(),
+        "permissions": sorted(RolePolicy.permissions(account.role_name)),
     }

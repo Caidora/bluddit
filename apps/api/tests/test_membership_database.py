@@ -6,12 +6,19 @@ from httpx import ASGITransport, AsyncClient
 import psycopg
 import pytest
 
+from bluddit_api.models.accounts import Account, AccountCredentials
 from bluddit_api.main import create_app
 from bluddit_api.migrate import MIGRATIONS, run_migrations
 from bluddit_api.repositories.auth import AuthRepository
 from bluddit_api.repositories.membership import MembershipRepository
 from bluddit_api.utils.auth import current_account
-from bluddit_api.utils.security import PASSWORD_HASHER, new_token, token_hash
+from bluddit_api.utils.security import (
+    PASSWORD_HASHER,
+    MembershipState,
+    new_token,
+    token_hash,
+)
+from bluddit_api.utils.permissions import Role
 
 pytestmark = pytest.mark.anyio
 PASSWORD = "synthetic-membership-password"
@@ -305,16 +312,14 @@ async def test_concurrent_deactivations_and_last_officer(members):
     assert sum(response.status_code in {401, 409} for response in results) == 1
     accounts = await MembershipRepository(database).list_accounts("active", 100, 0)
     assert (
-        sum(account["role_name"] in {"officer", "guild_master"} for account in accounts)
+        sum(account.role_name in {"officer", "guild_master"} for account in accounts)
         == 1
     )
-    survivor = next(
-        account for account in accounts if account["role_name"] == "officer"
-    )
+    survivor = next(account for account in accounts if account.role_name == "officer")
     assert (
         await client.post(
-            f"/api/accounts/{survivor['id']}/deactivate",
-            headers=tokens[survivor["username"]],
+            f"/api/accounts/{survivor.id}/deactivate",
+            headers=tokens[survivor.username],
         )
     ).status_code == 409
 
@@ -323,11 +328,14 @@ async def test_gm_transfer_rechecks_stale_gm_authority(members):
     client, _, app, users, tokens = members
     # Simulate the route's auth lookup completing before a concurrent GM transfer.
     # The locked SQL read must override this stale snapshot's apparent authority.
-    app.dependency_overrides[current_account] = lambda: {
-        "id": users["officer_a"],
-        "role_name": "guild_master",
-        "membership_state": "active",
-    }
+    app.dependency_overrides[current_account] = lambda: Account(
+        id=users["officer_a"],
+        username="officer_a",
+        display_name="Officer A",
+        role_name="guild_master",
+        membership_state="active",
+        timezone=None,
+    )
     response = await client.post(
         f"/api/accounts/{users['member']}/pass-guild-master",
         headers=tokens["officer_a"],
@@ -357,8 +365,8 @@ async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatc
     )
     assert response.status_code == 503 and "injected failure" not in response.text
     repository = MembershipRepository(database)
-    assert (await repository.get_account(actor))["role_name"] == "guild_master"
-    assert (await repository.get_account(users["member"]))["role_name"] == "member"
+    assert (await repository.get_account(actor)).role_name == "guild_master"
+    assert (await repository.get_account(users["member"])).role_name == "member"
     monkeypatch.setattr(psycopg.AsyncConnection, "execute", original)
     results = await asyncio.gather(
         client.post(
@@ -372,7 +380,7 @@ async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatc
     )
     assert sorted(response.status_code for response in results) == [200, 403]
     accounts = await MembershipRepository(database).list_accounts(None, 100, 0)
-    assert sum(account["role_name"] == "guild_master" for account in accounts) == 1
+    assert sum(account.role_name == "guild_master" for account in accounts) == 1
 
 
 @pytest.mark.parametrize(
@@ -405,7 +413,7 @@ async def test_membership_commits_if_session_revocation_fails(
         await client.get("/api/auth/me", headers=tokens["member"])
     ).status_code == 401
     account = await MembershipRepository(database).get_account(users["member"])
-    assert account["membership_state"] == destination
+    assert account.membership_state == destination
     monkeypatch.setattr(psycopg.AsyncConnection, "execute", original)
     # The review accepts retained sessions if the separate revocation fails.
     assert (
@@ -444,7 +452,7 @@ async def test_deactivation_cannot_remove_a_new_gm_after_api_precheck(
     )
     assert response.status_code == 409
     account = await MembershipRepository(database).get_account(users["member"])
-    assert (account["role_name"], account["membership_state"]) == (
+    assert (account.role_name, account.membership_state) == (
         "guild_master",
         "active",
     )
@@ -497,3 +505,62 @@ async def test_duplicate_gm_upgrade_fails_without_partial_changes(database, tmp_
             """SELECT to_regclass('permissions'), to_regclass('role_permissions'), (SELECT count(*) FROM schema_migrations), (SELECT count(*) FROM accounts)"""
         )
         assert await cursor.fetchone() == ("permissions", "role_permissions", 2, 2)
+
+
+async def test_repository_account_models_and_missing_rows(members):
+    _, database, _, users, tokens = members
+    repository = MembershipRepository(database)
+    auth = AuthRepository(database)
+    account = await repository.register("typed_member", "Typed Member", ENCODED)
+    assert isinstance(account, Account)
+    assert account.membership_state is MembershipState.PENDING
+    assert account.role_name is Role.MEMBER
+    assert account.timezone is None
+    assert "password_hash" not in account.model_dump()
+    assert await repository.get_account(account.id) == account
+    assert await repository.list_accounts("pending", 1, 1) == [account]
+    assert await repository.list_accounts(None, 1, 100) == []
+
+    credentials = await auth.get_account_credentials(account.username)
+    assert isinstance(credentials, AccountCredentials)
+    assert credentials.id == account.id
+    assert credentials.password_hash == ENCODED
+    assert credentials.membership_state is MembershipState.PENDING
+    assert ENCODED not in repr(credentials)
+    access = tokens["member"]["Authorization"].split()[1]
+    authenticated = await auth.get_account_for_hashed_access_token(token_hash(access))
+    assert isinstance(authenticated, Account)
+    assert authenticated.id == users["member"]
+    assert not hasattr(authenticated, "password_hash")
+
+    assert await repository.get_account(999999) is None
+    assert await repository.approve(999999) is None
+    assert await auth.get_account_credentials("missing") is None
+    assert (
+        await auth.get_account_for_hashed_access_token(token_hash(new_token())) is None
+    )
+
+    for operation, state, role in (
+        (repository.reject, MembershipState.REJECTED, Role.MEMBER),
+        (repository.activate, MembershipState.ACTIVE, Role.MEMBER),
+        (repository.promote_to_officer, MembershipState.ACTIVE, Role.OFFICER),
+        (repository.demote_to_member, MembershipState.ACTIVE, Role.MEMBER),
+        (repository.deactivate, MembershipState.INACTIVE, Role.MEMBER),
+        (repository.activate, MembershipState.ACTIVE, Role.MEMBER),
+    ):
+        result = await operation(account.id)
+        assert isinstance(result, Account)
+        assert result.membership_state is state
+        assert result.role_name is role
+    approved = await repository.approve(users["pending"])
+    assert isinstance(approved, Account)
+    assert approved.membership_state is MembershipState.ACTIVE
+
+    async with database.transaction() as connection:
+        await connection.execute(
+            """UPDATE accounts SET role_name = 'guild_master' WHERE id = %(account_id)s""",
+            {"account_id": users["officer_a"]},
+        )
+    successor = await repository.pass_guild_master(users["officer_a"], account.id)
+    assert isinstance(successor, Account)
+    assert successor.role_name is Role.GUILD_MASTER

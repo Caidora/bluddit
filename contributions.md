@@ -102,6 +102,9 @@ so run the Ruff commands explicitly.
   when it makes the operation easier to follow.
   Existing repository patterns outside the current ticket can remain unchanged.
   Routes belong in `bluddit_api/routes`, with shared helpers in `bluddit_api/utils`.
+  Use Pydantic query models and Psycopg `class_row(Model)` for returned records,
+  with explicit repository return types and attribute access in callers. Keep
+  credential projections separate from public account models.
   Repositories own operation-level transaction boundaries; dependency providers
   construct repositories without opening a request-wide transaction. Keep related
   writes atomic where correctness requires it, such as checking the current GM
