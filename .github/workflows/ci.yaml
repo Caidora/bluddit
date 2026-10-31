@@ -47,6 +47,8 @@ jobs:
           python-version: '3.13'
       - name: Install locked dependencies
         run: make setup
+      - name: Install browser for account UI checks
+        run: cd apps/web && npx playwright install --with-deps chromium
       - name: Verify web, API, infrastructure, and configuration
         env:
           POSTGRES_PASSWORD: ci-disposable-password

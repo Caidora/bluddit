@@ -1,19 +1,100 @@
-:root { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #edece7; background: #141b1a; font-synthesis: none; }
-* { box-sizing: border-box; }
-body { margin: 0; min-width: 280px; }
-main { max-width: 1120px; padding: 40px 48px 24px; margin: auto; min-height: 100svh; display: flex; flex-direction: column; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
-.wordmark { font-size: 30px; font-weight: 800; letter-spacing: -1.5px; color: inherit; text-decoration: none; }
-.wordmark span, h1 span { color: #bfd7aa; }
-.badge { border: 1px solid #414c45; border-radius: 24px; padding: 8px 14px; font-size: 12px; color: #c4ccc5; }
-section { margin: auto 0; padding: 88px 0; max-width: 800px; }
-.eyebrow { color: #bfd7aa; letter-spacing: 3px; font-size: 12px; font-weight: 650; }
-h1 { font-size: clamp(42px, 7.5vw, 84px); line-height: 1.07; letter-spacing: -.055em; margin: 26px 0; font-weight: 650; }
-.intro { color: #b9c3bc; max-width: 530px; font-size: 18px; line-height: 1.7; }
-.notice { display: flex; align-items: flex-start; gap: 14px; margin-top: 40px; border-top: 1px solid #38443c; padding-top: 24px; max-width: 530px; }
-.notice p { margin: 0; font-size: 14px; line-height: 1.7; }
-.notice p span { color: #a0aca3; }
-.dot { background: #bfd7aa; width: 7px; height: 7px; border-radius: 50%; margin-top: 8px; flex-shrink: 0; }
-footer { color: #a0aca3; font-size: 12px; padding-top: 24px; border-top: 1px solid #38443c; }
-a:focus-visible { outline: 2px solid #bfd7aa; outline-offset: 6px; }
-@media (max-width: 600px) { main { padding: 24px; } section { padding: 64px 0; } .intro { font-size: 16px; } }
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  font-synthesis: none;
+  color-scheme: dark;
+  --background: #0e1113;
+  --foreground: #e9edef;
+  --card: #15191c;
+  --card-foreground: #e9edef;
+  --popover: #1a1f23;
+  --popover-foreground: #e9edef;
+  --primary: #ff784f;
+  --primary-foreground: #170a05;
+  --secondary: #252b30;
+  --secondary-foreground: #e9edef;
+  --muted: #1c2226;
+  --muted-foreground: #a5b1b9;
+  --accent: #2a3238;
+  --accent-foreground: #ffffff;
+  --destructive: #ff9696;
+  --border: #30383e;
+  --input: #3c464e;
+  --ring: #ff946f;
+  --radius: 0.8rem;
+  --sidebar: #111518;
+  --sidebar-foreground: #dbe2e7;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: #252e34;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply m-0 bg-background text-foreground;
+    min-width: 280px;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+  button:not(:disabled),
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  a:focus-visible {
+    @apply rounded-sm outline-2 outline-offset-4 outline-ring;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+}

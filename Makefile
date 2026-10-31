@@ -1,4 +1,4 @@
-.PHONY: setup dev up down logs web-check web-build api-test infra-test verify config migrate migration-status db-test
+.PHONY: setup dev up down logs web-check web-build web-test api-test infra-test verify config migrate migration-status db-test
 setup:
 	npm --prefix apps/web ci
 	cd apps/api && uv sync --locked
@@ -14,6 +14,8 @@ web-check:
 	npm --prefix apps/web run typecheck
 web-build:
 	npm --prefix apps/web run build
+web-test:
+	npm --prefix apps/web test
 api-test:
 	cd apps/api && uv run --locked pytest --ignore=tests/test_database.py --ignore=tests/test_auth_database.py --ignore=tests/test_membership_database.py
 infra-test:
@@ -21,7 +23,7 @@ infra-test:
 config:
 	docker compose config --quiet
 	docker compose -f compose.yaml -f compose.dev.yaml config --quiet
-verify: web-check web-build api-test db-test infra-test config
+verify: web-check web-build web-test api-test db-test infra-test config
 
 migrate:
 	docker compose up -d --wait db
