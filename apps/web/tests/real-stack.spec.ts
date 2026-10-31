@@ -27,6 +27,27 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await expect(page.getByRole('heading', { name: 'Welcome, Browser Member' })).toBeVisible();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Welcome, Browser Member' })).toBeVisible();
+    // The handbook starts empty; officers author all policy content themselves.
+    await admin.goto('/handbook');
+    await expect(admin.getByRole('heading', { name: 'No handbook sections yet' })).toBeVisible();
+    await admin.getByRole('button', { name: 'Add section' }).click();
+    await admin.getByLabel('URL slug').fill('browser-policy');
+    await admin.getByLabel('Title', { exact: true }).fill('Browser policy');
+    await admin.getByLabel('Section text').fill('Synthetic browser policy text');
+    await admin.getByRole('button', { name: 'Create section', exact: true }).click();
+    await expect(admin.getByRole('heading', { name: 'Browser policy' })).toBeVisible();
+    await admin.getByRole('button', { name: 'Edit section' }).click();
+    await admin.getByLabel('Section text').fill('Updated synthetic policy');
+    await admin.getByRole('button', { name: 'Save revision' }).click();
+    await expect(admin.getByRole('status')).toContainText('Revision saved.');
+    await admin.getByRole('button', { name: 'View revisions' }).click();
+    await admin.locator('summary').filter({ hasText: 'Revision 1:' }).click();
+    await expect(admin.getByRole('region', { name: 'Revision history' })).toContainText(
+      'Synthetic browser policy text'
+    );
+    await page.goto('/handbook/browser-policy');
+    await expect(page.getByRole('article')).toHaveText('Updated synthetic policy');
+    await expect(page.getByRole('button', { name: 'Edit section' })).toHaveCount(0);
     await page.getByRole('link', { name: 'Log out', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.reload();

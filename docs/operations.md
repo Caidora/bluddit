@@ -551,3 +551,46 @@ seeds a synthetic GM, runs a test-only API on loopback port 18005, and drops the
 isolated database on shutdown. It never seeds the member database. Playwright
 reserves loopback port 4173 for its frontend. Synthetic fixture passwords are
 public test data and must never be reused for real accounts.
+
+## Guild handbook
+
+Migration `0004_guild_handbook.sql` adds empty `handbook_sections` and
+`handbook_revisions` tables. It does not seed sections, contacts, or policy prose.
+Apply it through the normal migration/deployment workflow before starting the new
+API. Existing account and session data is preserved. Re-running the migration
+command leaves officer content intact through the migration ledger. Rollback to
+the preceding application image can leave these additive tables in place; do not
+delete history as part of an application rollback.
+
+Officers and the GM use **Guild Handbook → Add section** to publish a title and
+plain-text body with a permanent URL slug. A save publishes immediately. Edits
+record the authenticated author's account ID and a timestamp in a new immutable
+revision. The UI shows the author's current display name and account ID; changing
+a display name does not change the author ID. Members can read and search current
+sections; officers can inspect paginated revision snapshots. HTML/Markdown are
+shown as literal text, including in history.
+
+The API contracts (also available at `/api/docs`) are:
+
+| Endpoint | Access | Input / behavior |
+| --- | --- | --- |
+| `GET /api/handbook?q=…` | Active member | Case-insensitive literal search of current titles/bodies, up to 200 characters; empty search lists all sections in `{sections: [...]}` |
+| `POST /api/handbook` | Officer/GM (`handbook.edit`) | `{slug, title, body}`; returns 201 with revision 1, or 409 for a duplicate slug |
+| `GET /api/handbook/{slug}` | Active member | Current section, or 404 |
+| `PUT /api/handbook/{slug}` | Officer/GM (`handbook.edit`) | `{title, body, expected_revision}`; returns the next revision, or 409 for a stale edit |
+| `GET /api/handbook/{slug}/revisions?limit=10&offset=0` | Officer/GM (`handbook.edit`) | `{revisions: [...], limit, offset}`, newest first; limit 1–50, offset ≥ 0; 404 for missing section |
+
+Slugs start with a lowercase letter and contain up to 80 lowercase letters,
+digits, or hyphens. Titles are 1–160 characters; bodies are 1–30,000 characters
+after trimming. Author IDs, timestamps, revision numbers, and slug changes cannot
+be supplied in edits. All writes require the existing same-origin/CSRF headers
+and an active session. Stale-edit errors keep the draft in the form; copy the
+draft before cancelling, then reopen the editor to reconcile the latest section.
+Concurrent saves of the same revision allow only one write to commit.
+
+Events and Crafting Directory currently have placeholder screens. Their handbook
+links search for `scheduling`, `loot`, and `material`, so officers can choose their
+own stable slugs. Include those terms in relevant section titles or bodies to
+make guidance discoverable. The links show the handbook's empty/no-match state
+until officers publish content. Section creation and policy approval remain guild
+responsibilities; the application supplies no policy wording.

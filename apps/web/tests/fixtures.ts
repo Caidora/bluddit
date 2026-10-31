@@ -22,7 +22,7 @@ export function officer(role: Role = 'officer'): CurrentAccount {
   return {
     ...member,
     role_name: role,
-    permissions: ['guild.read', 'accounts.manage', 'policy.read'],
+    permissions: ['guild.read', 'accounts.manage', 'policy.read', 'handbook.edit'],
   };
 }
 export async function mockApi(context: BrowserContext, initial: CurrentAccount | null = null) {

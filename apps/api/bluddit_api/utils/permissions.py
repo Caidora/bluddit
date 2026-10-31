@@ -21,6 +21,7 @@ class Permission(StrEnum):
     WISHLIST_EDIT_OWN = "wishlist.edit_own"
     SIGNUPS_EDIT_OWN = "signups.edit_own"
     ACCOUNTS_MANAGE = "accounts.manage"
+    HANDBOOK_EDIT = "handbook.edit"
     POLICY_READ = "policy.read"
     SHARED_RECORDS_CORRECT = "shared_records.correct"
 
@@ -38,6 +39,7 @@ _OFFICER = _MEMBER | frozenset(
     {
         Permission.ACCOUNTS_MANAGE,
         Permission.POLICY_READ,
+        Permission.HANDBOOK_EDIT,
         Permission.SHARED_RECORDS_CORRECT,
     }
 )

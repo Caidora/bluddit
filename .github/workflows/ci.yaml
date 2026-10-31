@@ -54,6 +54,14 @@ jobs:
           POSTGRES_PASSWORD: ci-disposable-password
           TEST_DATABASE_URL: postgresql://bluddit_test:ci-test-password@localhost:5432/bluddit_test
         run: make verify
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: apps/web/test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build and smoke-test production containers
         env:
           POSTGRES_PASSWORD: ci-disposable-password
