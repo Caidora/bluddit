@@ -1,0 +1,34 @@
+name: Hetzner preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/project-foundation]
+    paths:
+      - .github/workflows/preflight.yaml
+      - infra/scripts/preflight.sh
+      - infra/scripts/ssh-setup.sh
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+      SSH_KEY: ${{ secrets.SSH_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        run: bash infra/scripts/ssh-setup.sh
+      - name: Inspect host without changing services
+        run: |
+          printf -v remote 'bash -s -- %q %q' "$DEPLOY_PATH" "$APP_DOMAIN"
+          ssh -F "$RUNNER_TEMP/ssh/config" production "$remote" < infra/scripts/preflight.sh
