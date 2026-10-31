@@ -6,6 +6,7 @@ test('hydration fallback has no loading message', async ({ browser }) => {
   const page = await context.newPage();
   await page.goto('http://127.0.0.1:4173/home');
   await expect(page.getByText('Loading Bluddit…')).toHaveCount(0);
+  await expect(page.locator('main[data-bluddit-shell]')).toHaveCount(1);
   await expect(page.locator('main')).toHaveText(/^(Enable JavaScript to use Bluddit\.)?$/);
   await expect(page.getByRole('status')).toHaveCount(0);
   await context.close();
