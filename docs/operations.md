@@ -45,7 +45,11 @@ python3 infra/smoke.py http://127.0.0.1:8080
 
 This builds production containers; host Node and uv are not required to run them.
 The web page and `/api/health` share the same origin. PostgreSQL has no published
-port. API docs are disabled. `/api/health` checks process liveness; `/api/ready`
+port. Swagger UI is publicly available at `/api/docs` in all environments,
+including production, with its OpenAPI schema at `/api/openapi.json`. Both paths
+use the existing Nginx `/api/` proxy. API operations retain their session,
+permission, and origin/CSRF checks; write requests require `X-CSRF-Protection: 1`
+and an allowed origin. `/api/health` checks process liveness; `/api/ready`
 checks database access and required migrations without exposing configuration.
 
 For source reload, use `make dev`. To run checks on the host, install Node 24,

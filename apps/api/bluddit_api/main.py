@@ -39,9 +39,10 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Bluddit API",
-        docs_url=None,
+        docs_url="/api/docs",
+        swagger_ui_oauth2_redirect_url="/api/docs/oauth2-redirect",
         redoc_url=None,
-        openapi_url=None,
+        openapi_url="/api/openapi.json",
         lifespan=lifespan,
     )
     app.state.migrations = migrations
