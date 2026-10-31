@@ -21,16 +21,19 @@ Members have `guild.read`, `profile.edit_own`, `characters.edit_own`,
 `wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
 and add `accounts.manage`, `policy.read`, and `shared_records.correct`. The GM has
 the same permission set as Officers. Role changes additionally require the actor
-to be the current GM. The API checks this at the endpoint gate and rechecks it
-against locked records within the shared write transaction. The repository only
-executes SQL; it does not decide authorization or validate business transitions.
+to be the current GM. The API checks this at the endpoint gate. Ordinary permission
+checks may race with later account changes. Passing GM additionally rechecks the
+caller against locked records inside the repository operation's transaction,
+together with both role updates. Conditional SQL writes preserve target-state
+and leadership invariants even if API prechecks become stale.
 
 ## Contract for later feature tickets
 
 Permissions gate an action. Attribute-based authorization then limits which
 records and operations that action can affect. Check both on the server; UI
 capabilities are hints and never a substitute. Use `require_permission` for the
-endpoint gate and perform state/relationship checks within the write transaction.
+endpoint gate. Place state/relationship checks inside the operation transaction
+where their consistency is required for correctness.
 Never accept a client-supplied owner/manager ID as proof of authority.
 
 | Future action | Permission gate | Required resource/state check |

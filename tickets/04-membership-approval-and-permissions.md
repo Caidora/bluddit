@@ -54,8 +54,9 @@ reactivation requires new credentials. Responses omit credential/session data.
 Role/permission enums and an immutable Python policy replace database mappings.
 Added permission dependency aliases, effective permissions on `/api/auth/me`, and
 the read-only `/api/permissions` catalog. All API responses disable caching.
-Administrative writes share the bootstrap advisory lock, lock affected accounts
-in ID order, and recheck actor authority within the transaction. Self-role changes,
+Operations that can reduce leadership share the bootstrap advisory lock.
+GM succession locks affected accounts in ID order and rechecks GM authority within
+its transaction; ordinary permission checks run at request time. Self-role changes,
 Officer changes to GM accounts, and last-administrator removal are denied.
 
 Migration `0003_membership_policy.sql` drops the unused permission tables and adds
@@ -136,3 +137,27 @@ deactivation rollback when revocation fails, and commit failure returning 503
 instead of a false registration success. Ruff format/check and
 `git diff --check` passed. Maintainer approval and production acceptance remain
 pending.
+
+### Operation transaction boundaries — 2026-10-31
+
+Replaced the request-wide transaction and connection-bound dependency with the
+normal Database-backed repository provider. Each distinct repository operation
+owns its transaction and may execute multiple SQL queries directly; there are no
+chained lock/revocation/demotion repository helpers. API permission and input
+checks remain separate and may race with subsequent account changes.
+
+Deactivation/rejection include their session revocation in the same repository
+transaction. Passing GM includes locking both affected accounts, verifying that
+the caller is still the active GM, demoting that caller, and promoting the
+recipient in one transaction. Deactivation, demotion, and succession retain the
+shared leadership lock; conditional writes protect target states, prevent direct
+changes to a GM, and retain an active administrator. Conflicting writes return
+409; stale GM authority during succession returns 403. No API or schema changes.
+
+Updated contributor guidance, the runbook, and permission matrix. `make verify`
+passed 17 API/unit tests, 31 PostgreSQL 17 integration tests, 18 infrastructure
+tests, frontend types/build, and both Compose configurations. Rollback tests fail
+the SQL statement after the first write inside each operation; tests also cover
+concurrent leadership changes, a stale GM caller, and succession between a
+deactivation precheck and its write. Ruff format/check and `git diff --check`
+passed. Review, deployment, and production acceptance remain pending.

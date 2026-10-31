@@ -247,13 +247,17 @@ such as `repository: AuthRepositoryDep` and `repository: HealthRepositoryDep`.
 Providers in `bluddit_api/utils/dependencies.py` construct repositories using `Depends(get_database)`; routes and authentication
 helpers receive repositories instead of database connections. Readiness uses an
 optional repository so an unconfigured database still returns its existing 503 response.
-Application SQL belongs in `bluddit_api/repositories`. New membership repository
-methods each execute SQL and return results; authorization, membership transitions,
-and leadership rules live in the account API handlers/helpers. The membership
-provider opens one `database.transaction()` and yields a connection-bound
-repository using `Depends(..., scope="function")`. All SQL calls composed by the
-handler share that transaction; it commits before sending success and rolls back
-on exceptions. Handlers do not execute SQL or manage connections. Existing
+Application SQL belongs in `bluddit_api/repositories`. Membership repository
+methods represent full persistence operations and can execute several queries
+in their own transaction, without chaining repository helpers. The provider
+constructs the repository with the shared Database; there is no request-wide
+transaction. API handlers perform permission and input/transition checks before
+calling the operation. Those checks may race with other requests. SQL predicates
+still reject conflicting transitions and protect leadership records. Membership
+revocation and session revocation commit together. GM succession locks the affected
+accounts, rechecks the current active GM, and performs both role updates in one
+transaction. Each method commits before returning success. Handlers do not execute
+SQL or manage connections. Existing
 auth/account-recovery repositories retain their transaction boundaries and static
 helpers; this ticket does not refactor those unrelated operations.
 Keep each query in one triple-quoted string and bind values using named
@@ -402,9 +406,11 @@ Role changes take effect on existing bearer tokens at the next request. The old
 generic role-update and GM-update PUT endpoints are not available.
 
 Membership mutations and first-officer bootstrap share advisory transaction lock
-730003. The API calls repository lock queries in ID order, then rechecks caller
-authority and validates transitions against those locked records before changing
-data. The last active administrator cannot be deactivated; a GM
+730003 for operations that can reduce leadership: deactivation, demotion, and GM
+succession. Succession locks affected accounts in ID order and rechecks GM
+authority inside the same transaction as both updates. Other permission checks
+are request-time API checks. Conditional writes reject conflicting target states;
+the last active administrator cannot be deactivated or demoted, and a GM
 cannot be deactivated or demoted outside transfer.
 
 ### First Guild Master and migration compatibility

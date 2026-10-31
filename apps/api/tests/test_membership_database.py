@@ -302,11 +302,12 @@ async def test_concurrent_deactivations_and_last_officer(members):
         ),
     )
     assert sum(response.status_code == 200 for response in results) == 1
-    assert sum(response.status_code in {401, 403} for response in results) == 1
-    async with database.transaction() as connection:
-        repository = MembershipRepository(connection)
-        assert await repository.count_active_administrators() == 1
-        accounts = await repository.list_accounts("active", 100, 0)
+    assert sum(response.status_code in {401, 409} for response in results) == 1
+    accounts = await MembershipRepository(database).list_accounts("active", 100, 0)
+    assert (
+        sum(account["role_name"] in {"officer", "guild_master"} for account in accounts)
+        == 1
+    )
     survivor = next(
         account for account in accounts if account["role_name"] == "officer"
     )
@@ -318,10 +319,7 @@ async def test_concurrent_deactivations_and_last_officer(members):
     ).status_code == 409
 
 
-@pytest.mark.parametrize(
-    "action", ["promote-to-officer", "demote-to-member", "pass-guild-master"]
-)
-async def test_role_changes_recheck_stale_gm_authority(members, action):
+async def test_gm_transfer_rechecks_stale_gm_authority(members):
     client, _, app, users, tokens = members
     # Simulate the route's auth lookup completing before a concurrent GM transfer.
     # The locked SQL read must override this stale snapshot's apparent authority.
@@ -331,7 +329,8 @@ async def test_role_changes_recheck_stale_gm_authority(members, action):
         "membership_state": "active",
     }
     response = await client.post(
-        f"/api/accounts/{users['member']}/{action}", headers=tokens["officer_a"]
+        f"/api/accounts/{users['member']}/pass-guild-master",
+        headers=tokens["officer_a"],
     )
     assert response.status_code == 403
 
@@ -344,22 +343,23 @@ async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatc
             """UPDATE accounts SET role_name = 'guild_master' WHERE id = %(id)s""",
             {"id": actor},
         )
-    original = MembershipRepository.pass_guild_master
+    original = psycopg.AsyncConnection.execute
 
-    async def fail_promotion(self, account_id):
-        raise psycopg.OperationalError("injected failure")
+    async def fail_promotion(self, query, *args, **kwargs):
+        if "SET role_name = 'guild_master'" in str(query):
+            raise psycopg.OperationalError("injected failure")
+        return await original(self, query, *args, **kwargs)
 
-    monkeypatch.setattr(MembershipRepository, "pass_guild_master", fail_promotion)
+    monkeypatch.setattr(psycopg.AsyncConnection, "execute", fail_promotion)
     response = await client.post(
         f"/api/accounts/{users['member']}/pass-guild-master",
         headers=tokens["officer_a"],
     )
     assert response.status_code == 503 and "injected failure" not in response.text
-    async with database.transaction() as connection:
-        repository = MembershipRepository(connection)
-        assert (await repository.get_account(actor))["role_name"] == "guild_master"
-        assert (await repository.get_account(users["member"]))["role_name"] == "member"
-    monkeypatch.setattr(MembershipRepository, "pass_guild_master", original)
+    repository = MembershipRepository(database)
+    assert (await repository.get_account(actor))["role_name"] == "guild_master"
+    assert (await repository.get_account(users["member"]))["role_name"] == "member"
+    monkeypatch.setattr(psycopg.AsyncConnection, "execute", original)
     results = await asyncio.gather(
         client.post(
             f"/api/accounts/{users['member']}/pass-guild-master",
@@ -371,8 +371,7 @@ async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatc
         ),
     )
     assert sorted(response.status_code for response in results) == [200, 403]
-    async with database.transaction() as connection:
-        accounts = await MembershipRepository(connection).list_accounts(None, 100, 0)
+    accounts = await MembershipRepository(database).list_accounts(None, 100, 0)
     assert sum(account["role_name"] == "guild_master" for account in accounts) == 1
 
 
@@ -381,10 +380,14 @@ async def test_deactivation_rolls_back_if_session_revocation_fails(
 ):
     client, database, _, users, tokens = members
 
-    async def fail_revocation(self, account_id):
-        raise psycopg.OperationalError("injected failure")
+    original = psycopg.AsyncConnection.execute
 
-    monkeypatch.setattr(MembershipRepository, "revoke_sessions", fail_revocation)
+    async def fail_revocation(self, query, *args, **kwargs):
+        if "UPDATE refresh_sessions SET revoked_at" in str(query):
+            raise psycopg.OperationalError("injected failure")
+        return await original(self, query, *args, **kwargs)
+
+    monkeypatch.setattr(psycopg.AsyncConnection, "execute", fail_revocation)
     response = await client.post(
         f"/api/accounts/{users['member']}/deactivate", headers=tokens["officer_a"]
     )
@@ -392,9 +395,40 @@ async def test_deactivation_rolls_back_if_session_revocation_fails(
     assert (
         await client.get("/api/auth/me", headers=tokens["member"])
     ).status_code == 200
-    async with database.transaction() as connection:
-        account = await MembershipRepository(connection).get_account(users["member"])
+    account = await MembershipRepository(database).get_account(users["member"])
     assert account["membership_state"] == "active"
+
+
+async def test_deactivation_cannot_remove_a_new_gm_after_api_precheck(
+    members, monkeypatch
+):
+    client, database, _, users, tokens = members
+    async with database.transaction() as connection:
+        await connection.execute(
+            """UPDATE accounts SET role_name = 'guild_master' WHERE id = %(account_id)s""",
+            {"account_id": users["officer_a"]},
+        )
+    original = MembershipRepository.deactivate
+
+    async def transfer_before_deactivation(self, account_id):
+        # Succession commits after the API's target lookup, before its write.
+        await MembershipRepository(database).pass_guild_master(
+            users["officer_a"], account_id
+        )
+        return await original(self, account_id)
+
+    monkeypatch.setattr(
+        MembershipRepository, "deactivate", transfer_before_deactivation
+    )
+    response = await client.post(
+        f"/api/accounts/{users['member']}/deactivate", headers=tokens["officer_b"]
+    )
+    assert response.status_code == 409
+    account = await MembershipRepository(database).get_account(users["member"])
+    assert (account["role_name"], account["membership_state"]) == (
+        "guild_master",
+        "active",
+    )
 
 
 async def test_upgrade_preserves_accounts_and_removes_permission_tables(
