@@ -47,7 +47,10 @@ This builds production containers; host Node and uv are not required to run them
 The web page and `/api/health` share the same origin. PostgreSQL has no published
 port. Swagger UI is publicly available at `/api/docs` in all environments,
 including production, with its OpenAPI schema at `/api/openapi.json`. Both paths
-use the existing Nginx `/api/` proxy. API operations retain their session,
+use the existing Nginx `/api/` proxy. JSON route responses have dedicated Pydantic
+models in `apps/api/bluddit_api/routes/responses.py`, documented in OpenAPI. Routes
+convert repository records to these public models before returning them; only the
+declared public fields are serialized. Logout returns an empty 204 response. API operations retain their session,
 permission, and origin/CSRF checks; write requests require `X-CSRF-Protection: 1`
 and an allowed origin. `/api/health` checks process liveness; `/api/ready`
 checks database access and required migrations without exposing configuration.

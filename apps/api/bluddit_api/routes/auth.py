@@ -13,7 +13,7 @@ from bluddit_api.utils.permissions import RolePolicy
 from bluddit_api.utils.auth import (
     COOKIE_NAME,
     TOKEN_PATH,
-    access_response,
+    ACCESS_SECONDS,
     current_account,
     set_refresh_cookie,
     unauthorized,
@@ -27,6 +27,12 @@ from bluddit_api.utils.security import (
     verify_password,
     validate_password,
     PASSWORD_HASHER,
+)
+
+from bluddit_api.routes.responses import (
+    AccountResponse,
+    AccessTokenResponse,
+    CurrentAccountResponse,
 )
 
 router = APIRouter(prefix="/api/auth")
@@ -64,7 +70,7 @@ class RegistrationInput(LoginInput):
 @router.post("/register", status_code=201)
 async def register(
     body: RegistrationInput, request: Request, repository: MembershipRepositoryDep
-):
+) -> AccountResponse:
     # One bounded process-wide bucket prevents unique usernames bypassing limits.
     await request.app.state.registration_throttle.reserve("registration")
     async with request.app.state.password_slots:
@@ -72,9 +78,10 @@ async def register(
             PASSWORD_HASHER.hash, body.password.get_secret_value()
         )
     try:
-        return await repository.register(body.username, body.display_name, encoded)
+        account = await repository.register(body.username, body.display_name, encoded)
     except UniqueViolation:
         raise HTTPException(409, "Username unavailable") from None
+    return AccountResponse.model_validate(account)
 
 
 @router.post("/login")
@@ -83,7 +90,7 @@ async def login(
     request: Request,
     response: Response,
     repository: AuthRepositoryDep,
-):
+) -> AccessTokenResponse:
     await request.app.state.login_throttle.reserve(body.username)
     account = await repository.get_account_credentials(body.username)
     # Bound memory-intensive password work even across many different usernames.
@@ -109,7 +116,7 @@ async def login(
     if not created:
         raise HTTPException(401, "Invalid username or password")
     set_refresh_cookie(response, refresh, request.app.state.auth_settings)
-    return access_response(access)
+    return AccessTokenResponse(access_token=access, expires_in=ACCESS_SECONDS)
 
 
 @router.post("/token")
@@ -117,7 +124,7 @@ async def refresh(
     request: Request,
     response: Response,
     repository: AuthRepositoryDep,
-):
+) -> AccessTokenResponse:
     hashed = token_hash(request.cookies.get(COOKIE_NAME))
     if hashed is None:
         raise unauthorized()
@@ -130,11 +137,11 @@ async def refresh(
     if not rotated:
         raise unauthorized()
     set_refresh_cookie(response, replacement, request.app.state.auth_settings)
-    return access_response(access)
+    return AccessTokenResponse(access_token=access, expires_in=ACCESS_SECONDS)
 
 
 @router.delete("/token", status_code=204)
-async def logout(request: Request, repository: AuthRepositoryDep):
+async def logout(request: Request, repository: AuthRepositoryDep) -> Response:
     hashed = token_hash(request.cookies.get(COOKIE_NAME))
     if hashed is not None:
         await repository.revoke_session(hashed)
@@ -150,8 +157,11 @@ async def logout(request: Request, repository: AuthRepositoryDep):
 
 
 @router.get("/me")
-async def me(account: Annotated[Account, Depends(current_account)]):
-    return {
-        **account.model_dump(),
-        "permissions": sorted(RolePolicy.permissions(account.role_name)),
-    }
+async def me(
+    account: Annotated[Account, Depends(current_account)],
+) -> CurrentAccountResponse:
+    public_account = AccountResponse.model_validate(account)
+    return CurrentAccountResponse(
+        **public_account.model_dump(),
+        permissions=sorted(RolePolicy.permissions(account.role_name)),
+    )

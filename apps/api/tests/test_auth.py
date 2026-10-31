@@ -159,6 +159,9 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
             json={"username": "member", "password": "test-password"},
         )
         assert response.status_code == 200
+        assert set(response.json()) == {"access_token", "token_type", "expires_in"}
+        assert response.json()["token_type"] == "Bearer"
+        assert response.json()["expires_in"] == 600
         access = response.json()["access_token"]
         refresh = client.cookies.get("bluddit_refresh")
         response = client.get(
@@ -169,10 +172,16 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
         repository.get_account_for_hashed_access_token.assert_awaited_once_with(
             token_hash(access)
         )
-        assert client.post("/api/auth/token", headers=headers).status_code == 200
+        response = client.post("/api/auth/token", headers=headers)
+        assert response.status_code == 200
+        assert set(response.json()) == {"access_token", "token_type", "expires_in"}
+        assert response.json()["token_type"] == "Bearer"
+        assert response.json()["expires_in"] == 600
         assert repository.rotate_session.await_args.args[0] == token_hash(refresh)
         rotated_refresh = client.cookies.get("bluddit_refresh")
-        assert client.delete("/api/auth/token", headers=headers).status_code == 204
+        response = client.delete("/api/auth/token", headers=headers)
+        assert response.status_code == 204
+        assert response.content == b""
         repository.revoke_session.assert_awaited_once_with(token_hash(rotated_refresh))
         repository.get_account_credentials.assert_awaited_once_with("member")
         repository.create_session.assert_awaited_once()
