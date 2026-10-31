@@ -12,7 +12,7 @@ Provide navigation, authentication screens, and reusable member-page patterns.
 
 - Implement login, registration, pending-approval, logout, and unauthorized screens.
 - Add protected navigation: Home, Roster & Squads, Gear & Farming, Events, Crafting Directory, and Guild Handbook.
-- Add the officer membership/permission screens using ticket 04 endpoints.
+- Add the officer membership/role-assignment screens and read-only permission view using ticket 04 endpoints. Role-permission mappings are fixed in Python; do not offer mapping-edit controls.
 - Create simple shared form, list, loading, empty, and error components. Preserve form input after validation errors.
 - Hide unavailable controls according to capabilities, while retaining API authorization.
 - Make navigation and forms work on phones and with a keyboard. Unbuilt feature destinations show a clear temporary empty state until their tickets land.

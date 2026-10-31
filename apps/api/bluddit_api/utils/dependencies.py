@@ -7,6 +7,7 @@ from fastapi import Depends
 from bluddit_api.database import Database, get_database, get_optional_database
 from bluddit_api.repositories.auth import AuthRepository
 from bluddit_api.repositories.health import HealthRepository
+from bluddit_api.repositories.membership import MembershipRepository
 
 
 async def get_auth_repository(
@@ -23,3 +24,14 @@ async def get_health_repository(
 
 AuthRepositoryDep = Annotated[AuthRepository, Depends(get_auth_repository)]
 HealthRepositoryDep = Annotated[HealthRepository | None, Depends(get_health_repository)]
+
+
+async def get_membership_repository(
+    database: Database = Depends(get_database),
+) -> MembershipRepository:
+    return MembershipRepository(database)
+
+
+MembershipRepositoryDep = Annotated[
+    MembershipRepository, Depends(get_membership_repository)
+]

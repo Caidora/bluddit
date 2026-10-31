@@ -142,7 +142,10 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
     }
     repository.create_session.return_value = True
     repository.rotate_session.return_value = True
-    repository.get_account_for_hashed_access_token.return_value = {"username": "member"}
+    repository.get_account_for_hashed_access_token.return_value = {
+        "username": "member",
+        "role_name": "member",
+    }
     app = create_app()
     app.dependency_overrides[get_auth_repository] = lambda: repository
     headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
@@ -158,7 +161,8 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
         response = client.get(
             "/api/auth/me", headers={"Authorization": "Bearer " + access}
         )
-        assert response.json() == {"username": "member"}
+        assert response.json()["username"] == "member"
+        assert "guild.read" in response.json()["permissions"]
         repository.get_account_for_hashed_access_token.assert_awaited_once_with(
             token_hash(access)
         )

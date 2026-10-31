@@ -16,7 +16,7 @@ def test_health_does_not_require_database_or_expose_configuration(monkeypatch):
     assert response.json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json", "/api/accounts"])
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
 def test_only_skeleton_api_is_available(path):
     with TestClient(create_app()) as client:
         assert client.get(path).status_code == 404

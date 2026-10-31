@@ -82,9 +82,14 @@ All core actions should work comfortably on a phone, with clear forms and readab
 | Member | View member areas; edit own profile, characters, wishlist, and signups |
 | Organizer / squad lead | Manage assigned squads, events, and rosters |
 | Quartermaster | Maintain material routing and crafter assignments |
-| Officer / admin | Approve membership, assign permissions, edit rules, and correct shared records |
+| Officer / admin | Approve membership, assign authorized account roles, edit rules, and correct shared records |
 
 Use session-based authentication. Membership requires an invitation or officer approval.
+
+Release 1 uses officer-approved registration. Each account has one role, with
+permissions defined by fixed Python mappings. The Guild Master is protected from
+Officer changes and delegates that role through an atomic transfer. Resource
+ownership and manager/quartermaster assignments further constrain feature actions.
 
 ## Before launch
 
