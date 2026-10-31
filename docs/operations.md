@@ -235,8 +235,10 @@ remains available during outages. Routes live in `bluddit_api/routes`; use
 `async def` endpoints and `Depends(get_database)` to construct repositories.
 Application SQL and short `async with database.transaction() as connection:`
 blocks belong in `bluddit_api/repositories`, not routes or account CLI handlers.
-Keep each query in one triple-quoted string and pass values using `%s` placeholders
-and a separate parameter sequence. Await execution and cursor fetch operations.
+Keep each query in one triple-quoted string and bind values using named
+placeholders such as `%(account_id)s` with a separate mapping such as
+`{"account_id": account_id}`. Do not use positional `%s` placeholders or parameter
+sequences, and do not interpolate values into SQL. Await execution and cursor fetch operations.
 Each business operation commits on success and rolls back on error; refresh
 rotation/access issuance and password reset/session revocation remain atomic.
 Shared authentication configuration, dependencies, and credential/token helpers

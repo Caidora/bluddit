@@ -12,6 +12,8 @@ Follow-up tickets.
 - Keep work within the ticket. Do not add AI product features, crafting requests, cooldown tracking, loot tracking, recurring events, notifications, or other roadmap features.
 - Each ticket includes its necessary database changes, API authorization, UI behavior, and verification. Do not leave an API-only feature marked complete when its UI is required.
 - Use explicit parameterized SQL and numbered migrations, no ORM. Enforce permissions at the API, not just in the UI.
+- Bind SQL values with named placeholders (`%(account_id)s`) and a separate mapping;
+  do not use positional `%s` placeholders or interpolate values into SQL.
 - Run appropriate checks and record evidence. Update the ticket status to Complete only when its acceptance conditions are met; otherwise record exactly what remains.
 - Keep CI current as features and tests are added. After checks pass, deploy each completed implementation ticket through the workflow established in ticket 01 and verify its behavior on the Hetzner production instance using dedicated test records. Preserve member data and record the deployed version and results.
 - Record migration/configuration changes and update setup instructions as needed. Preserve existing member data and user edits.

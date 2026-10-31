@@ -62,6 +62,10 @@ checks you ran and explain any omissions. CI must still pass before merge.
   Include the appropriate lockfile whenever dependencies change.
 - Use explicit parameterized SQL and numbered migrations, with no ORM. Preserve
   existing data and document migration, compatibility, and recovery implications.
+- Bind SQL values by name, using placeholders such as `%(account_id)s` and a
+  separate mapping such as `{"account_id": account_id}`. Do not use positional
+  `%s` placeholders or positional parameter sequences. Let the driver bind values;
+  never interpolate them with Python formatting or f-strings.
 - Name ID columns with the singular table/entity name in snake_case followed by
   `_id`: `accounts.account_id`, `sessions.session_id`, and
   `refresh_sessions.refresh_session_id`, never a bare `id`. Foreign-key ID columns
