@@ -15,12 +15,14 @@ state on every request; pending, rejected, and inactive accounts have no access.
 | List/read accounts; approve/reject/deactivate/activate | `accounts.manage` | Officers and GM; protected GM and membership-transition rules |
 | Promote to Officer / demote to Member | `accounts.manage` | GM only; explicit source role; no self-role changes or changes to GM; retain an active administrator |
 | Read policy | `policy.read` | Officers and GM; no mutation API |
+| Read/search handbook | `guild.read` | Active member; current published content |
+| Create/edit handbook; read revisions | `handbook.edit` | Officer/GM; server-attributed author; stable slug; expected revision required for edits |
 | Pass GM | `accounts.manage` | Current active GM → different active account; atomic succession |
 
 Members have `guild.read`, `profile.edit_own`, `characters.edit_own`,
 `wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
-and add `accounts.manage`, `policy.read`, and `shared_records.correct`. The GM has
-the same permission set as Officers. Role changes additionally require the actor
+and add `accounts.manage`, `policy.read`, `handbook.edit`, and
+`shared_records.correct`. The GM has the same permission set as Officers. Role changes additionally require the actor
 to be the current GM. The API checks this at the endpoint gate. Ordinary permission
 checks may race with later account changes. Passing GM additionally rechecks the
 caller against locked records inside the repository operation's transaction,
@@ -44,12 +46,12 @@ Never accept a client-supplied owner/manager ID as proof of authority.
 
 | Future action | Permission gate | Required resource/state check |
 | --- | --- | --- |
-| Read guild profiles, squads, priorities, events, directory, handbook | `guild.read` | Active membership; resource visibility/state |
+| Read guild profiles, squads, priorities, events, directory | `guild.read` | Active membership; resource visibility/state |
 | Edit profile/characters/wishlist/signups | Corresponding `*.edit_own` | Ownership through persisted account/character relationships; feature-specific state validation |
 | Manage a squad/event/roster | Add the action permission with that feature | Persisted manager assignment for that exact resource, plus allowed state |
 | Create an event | Add the action permission in ticket 11 | Validate creation and establish creator's manager relationship atomically |
 | Maintain routing/crafter/buff assignments | Add the action permission in tickets 13–14 | Persisted quartermaster responsibility and its defined scope |
-| Correct shared records / edit handbook / assign managers | `shared_records.correct` | Explicit Officer/GM action, existing target, and all record-validity constraints |
+| Correct shared records / assign managers | `shared_records.correct` | Explicit Officer/GM action, existing target, and all record-validity constraints |
 
 Organizer and quartermaster are responsibilities, not account roles. Future
 tickets add action permissions to the fixed mappings alongside concrete assignment

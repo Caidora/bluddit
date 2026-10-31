@@ -1,6 +1,5 @@
-import { FeaturePlaceholder } from '@/components/feature-placeholder';
-import { destinations } from '@/navigation';
+import { Handbook } from '@/features/handbook/handbook';
 
 export default function Page() {
-  return <FeaturePlaceholder destination={destinations.handbook} />;
+  return <Handbook />;
 }

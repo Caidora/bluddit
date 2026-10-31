@@ -12,6 +12,7 @@ export default [
       ...['home', 'roster', 'gear', 'events', 'crafting', 'handbook'].map((path) =>
         route(path, `routes/${path}.tsx`)
       ),
+      route('handbook/:slug', 'routes/handbook-section.tsx'),
       layout('routes/membership-gate.tsx', [
         route('admin/accounts', 'routes/accounts.tsx'),
         route('admin/accounts/:accountId', 'routes/account.tsx'),

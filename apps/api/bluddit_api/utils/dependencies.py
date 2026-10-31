@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from bluddit_api.database import Database, get_database, get_optional_database
+from bluddit_api.repositories.handbook import HandbookRepository
 from bluddit_api.repositories.auth import AuthRepository
 from bluddit_api.repositories.health import HealthRepository
 from bluddit_api.repositories.membership import MembershipRepository
@@ -35,3 +36,12 @@ async def get_membership_repository(
 MembershipRepositoryDep = Annotated[
     MembershipRepository, Depends(get_membership_repository)
 ]
+
+
+async def get_handbook_repository(
+    database: Database = Depends(get_database),
+) -> HandbookRepository:
+    return HandbookRepository(database)
+
+
+HandbookRepositoryDep = Annotated[HandbookRepository, Depends(get_handbook_repository)]
