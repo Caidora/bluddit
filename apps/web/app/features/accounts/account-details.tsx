@@ -1,4 +1,4 @@
-import { Link, Navigate, useParams } from 'react-router';
+import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAccount } from '@/components/session';
 import { PageTitle, ErrorNotice, Loading } from '@/components/patterns';
@@ -10,6 +10,7 @@ import { AccountControls } from './account-controls';
 
 export function AccountDetails() {
   const actor = useAccount();
+  const navigate = useNavigate();
   const { accountId } = useParams();
   const id = Number(accountId);
   const query = useQuery({
@@ -38,9 +39,13 @@ export function AccountDetails() {
   const target = query.data;
   return (
     <>
-      <Link className="mb-5 inline-block text-sm text-primary" to="/admin/accounts">
+      <button
+        type="button"
+        className="mb-5 inline-block text-sm text-primary"
+        onClick={() => navigate(-1)}
+      >
         ← Membership
-      </Link>
+      </button>
       <PageTitle description={`u/${target.username}`}>{target.display_name}</PageTitle>
       <Card>
         <CardContent className="p-5">
