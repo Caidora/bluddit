@@ -27,6 +27,12 @@ caller against locked records inside the repository operation's transaction,
 together with both role updates. Conditional SQL writes preserve target-state
 and leadership invariants even if API prechecks become stale.
 
+Rejection/deactivation commit membership changes before a separate auth repository
+call revokes all account refresh sessions. Failed revocation returns 503 without
+rolling back membership. Live membership checks still deny access while inactive
+or rejected, but old sessions may work after reactivation if revocation failed.
+Concurrent reactivation/login can race with revocation; this tradeoff is accepted.
+
 ## Contract for later feature tickets
 
 Permissions gate an action. Attribute-based authorization then limits which

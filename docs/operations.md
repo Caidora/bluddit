@@ -254,8 +254,13 @@ constructs the repository with the shared Database; there is no request-wide
 transaction. API handlers perform permission and input/transition checks before
 calling the operation. Those checks may race with other requests. SQL predicates
 still reject conflicting transitions and protect leadership records. Membership
-revocation and session revocation commit together. GM succession locks the affected
-accounts, rechecks the current active GM, and performs both role updates in one
+updates and session revocation commit separately. Rejection/deactivation routes
+call the reusable auth repository revocation operation after the membership update.
+If revocation fails, the API returns 503 but the membership change remains committed.
+Inactive/rejected accounts are still denied immediately by live membership checks;
+reactivating before successful revocation can restore old sessions. Concurrent
+reactivation/login can also race with revocation. These tradeoffs are accepted. GM succession locks the
+affected accounts, rechecks the current active GM, and performs both role updates in one
 transaction. Each method commits before returning success. Handlers do not execute
 SQL or manage connections. Existing
 auth/account-recovery repositories retain their transaction boundaries and static
@@ -389,9 +394,9 @@ and repository method, gated by `accounts.manage`.
 | `GET /api/accounts` | Optional `membership_state`, `limit` (1–100, default 50), `offset` (default 0); returns `{accounts, limit, offset}` ordered by ID |
 | `GET /api/accounts/{account_id}` | Returns public account fields only |
 | `POST /api/accounts/{account_id}/approve` | Pending → active |
-| `POST /api/accounts/{account_id}/reject` | Pending → rejected |
-| `POST /api/accounts/{account_id}/deactivate` | Active → inactive; revokes every refresh-session family atomically |
-| `POST /api/accounts/{account_id}/activate` | Rejected/inactive → active; requires a fresh login |
+| `POST /api/accounts/{account_id}/reject` | Pending → rejected; then separately revokes every refresh-session family |
+| `POST /api/accounts/{account_id}/deactivate` | Active → inactive; then separately revokes every refresh-session family |
+| `POST /api/accounts/{account_id}/activate` | Rejected/inactive → active; fresh login required after successful session revocation |
 | `POST /api/accounts/{account_id}/promote-to-officer` | GM only; Member → Officer |
 | `POST /api/accounts/{account_id}/demote-to-member` | GM only; Officer → Member |
 | `POST /api/accounts/{account_id}/pass-guild-master` | GM only; transfers to another active account; outgoing GM becomes Officer atomically |

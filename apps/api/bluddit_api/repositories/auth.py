@@ -117,6 +117,16 @@ class AuthRepository:
                 {"token_hash": hashed},
             )
 
+    async def revoke_account_sessions(self, account_id: int):
+        async with self.database.transaction() as connection:
+            await connection.execute(
+                """
+                UPDATE refresh_sessions SET revoked_at = now()
+                WHERE account_id = %(account_id)s AND revoked_at IS NULL
+                """,
+                {"account_id": account_id},
+            )
+
     @staticmethod
     async def _insert_access(
         connection, account_id: int, refresh_id: int, hashed: bytes

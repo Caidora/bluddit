@@ -88,14 +88,6 @@ class MembershipRepository:
             )
             cursor.row_factory = dict_row
             account = await cursor.fetchone()
-            if account is not None:
-                await connection.execute(
-                    """
-                    UPDATE refresh_sessions SET revoked_at = now()
-                    WHERE account_id = %(account_id)s AND revoked_at IS NULL
-                    """,
-                    {"account_id": account_id},
-                )
         return account
 
     async def deactivate(self, account_id: int):
@@ -115,14 +107,6 @@ class MembershipRepository:
             )
             cursor.row_factory = dict_row
             account = await cursor.fetchone()
-            if account is not None:
-                await connection.execute(
-                    """
-                    UPDATE refresh_sessions SET revoked_at = now()
-                    WHERE account_id = %(account_id)s AND revoked_at IS NULL
-                    """,
-                    {"account_id": account_id},
-                )
         return account
 
     async def activate(self, account_id: int):
@@ -173,6 +157,8 @@ class MembershipRepository:
         return account
 
     async def pass_guild_master(self, actor_id: int, account_id: int):
+        if actor_id == account_id:
+            return None
         async with self.database.transaction() as connection:
             await connection.execute("""SELECT pg_advisory_xact_lock(730003)""")
             cursor = await connection.execute(
@@ -192,11 +178,7 @@ class MembershipRepository:
             ):
                 raise GuildMasterChangedError
             target = locked.get(account_id)
-            if (
-                actor_id == account_id
-                or target is None
-                or target["membership_state"] != "active"
-            ):
+            if target is None or target["membership_state"] != "active":
                 return None
             # Both writes and the current-GM check share this transaction.
             # Demote first to satisfy the unique index; a failure rolls both back.

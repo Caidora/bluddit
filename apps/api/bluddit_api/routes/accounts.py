@@ -5,10 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from bluddit_api.utils.authorization import require_permission, require_guild_master
-from bluddit_api.utils.dependencies import MembershipRepositoryDep
+from bluddit_api.utils.dependencies import AuthRepositoryDep, MembershipRepositoryDep
 from bluddit_api.utils.permissions import Permission, Role, RolePolicy
 from bluddit_api.repositories.membership import (
-    MembershipRepository,
     GuildMasterChangedError,
 )
 from bluddit_api.utils.security import MembershipState
@@ -20,26 +19,6 @@ AccountManager = Annotated[
 ]
 GuildMaster = Annotated[dict, Depends(require_guild_master)]
 PolicyReader = Annotated[dict, Depends(require_permission(Permission.POLICY_READ))]
-
-
-async def _target(account_id: int, repository: MembershipRepository):
-    account = await repository.get_account(account_id)
-    if account is None:
-        raise HTTPException(404, "Account not found")
-    if account["role_name"] == Role.GUILD_MASTER:
-        raise HTTPException(403, "Guild Master changes require transfer")
-    return account
-
-
-def _updated(account):
-    if account is None:
-        raise HTTPException(409, "Account update conflicts with current state")
-    return account
-
-
-def _require_membership_state(account: dict, *allowed: MembershipState):
-    if account["membership_state"] not in allowed:
-        raise HTTPException(409, "Invalid membership transition")
 
 
 @router.get("/accounts")
@@ -68,73 +47,135 @@ async def account(
 async def approve(
     account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
 ):
-    target = await _target(account_id, repository)
-    _require_membership_state(target, MembershipState.PENDING)
-    return _updated(await repository.approve(account_id))
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
+    if target["membership_state"] != MembershipState.PENDING:
+        raise HTTPException(409, "Invalid membership transition")
+    result = await repository.approve(account_id)
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    return result
 
 
 @router.post("/accounts/{account_id}/reject")
 async def reject(
-    account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
+    account_id: AccountId,
+    actor: AccountManager,
+    repository: MembershipRepositoryDep,
+    auth_repository: AuthRepositoryDep,
 ):
-    target = await _target(account_id, repository)
-    _require_membership_state(target, MembershipState.PENDING)
-    return _updated(await repository.reject(account_id))
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
+    if target["membership_state"] != MembershipState.PENDING:
+        raise HTTPException(409, "Invalid membership transition")
+    result = await repository.reject(account_id)
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    await auth_repository.revoke_account_sessions(account_id)
+    return result
 
 
 @router.post("/accounts/{account_id}/deactivate")
 async def deactivate(
-    account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
+    account_id: AccountId,
+    actor: AccountManager,
+    repository: MembershipRepositoryDep,
+    auth_repository: AuthRepositoryDep,
 ):
-    target = await _target(account_id, repository)
-    _require_membership_state(target, MembershipState.ACTIVE)
-    return _updated(await repository.deactivate(account_id))
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
+    if target["membership_state"] != MembershipState.ACTIVE:
+        raise HTTPException(409, "Invalid membership transition")
+    result = await repository.deactivate(account_id)
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    await auth_repository.revoke_account_sessions(account_id)
+    return result
 
 
 @router.post("/accounts/{account_id}/activate")
 async def activate(
     account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
 ):
-    target = await _target(account_id, repository)
-    _require_membership_state(
-        target, MembershipState.REJECTED, MembershipState.INACTIVE
-    )
-    return _updated(await repository.activate(account_id))
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
+    if target["membership_state"] not in (
+        MembershipState.REJECTED,
+        MembershipState.INACTIVE,
+    ):
+        raise HTTPException(409, "Invalid membership transition")
+    result = await repository.activate(account_id)
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    return result
 
 
 @router.post("/accounts/{account_id}/promote-to-officer")
 async def promote_to_officer(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
 ):
-    target = await _target(account_id, repository)
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
     if target["role_name"] != Role.MEMBER:
         raise HTTPException(409, "Invalid role transition")
-    return _updated(await repository.promote_to_officer(account_id))
+    result = await repository.promote_to_officer(account_id)
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    return result
 
 
 @router.post("/accounts/{account_id}/demote-to-member")
 async def demote_to_member(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
 ):
-    target = await _target(account_id, repository)
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
     if target["role_name"] != Role.OFFICER:
         raise HTTPException(409, "Invalid role transition")
-    return _updated(await repository.demote_to_member(account_id))
+    result = await repository.demote_to_member(account_id)
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    return result
 
 
 @router.post("/accounts/{account_id}/pass-guild-master")
 async def pass_guild_master(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
 ):
-    target = await _target(account_id, repository)
+    target = await repository.get_account(account_id)
+    if target is None:
+        raise HTTPException(404, "Account not found")
+    if target["role_name"] == Role.GUILD_MASTER:
+        raise HTTPException(403, "Guild Master changes require transfer")
     if target["membership_state"] != MembershipState.ACTIVE:
         raise HTTPException(409, "Guild Master recipient must be active")
     try:
-        return _updated(await repository.pass_guild_master(actor["id"], account_id))
+        result = await repository.pass_guild_master(actor["id"], account_id)
     except GuildMasterChangedError:
         raise HTTPException(
             403, "Only the current Guild Master may pass the role"
         ) from None
+    if result is None:
+        raise HTTPException(409, "Account update conflicts with current state")
+    return result
 
 
 @router.get("/permissions")

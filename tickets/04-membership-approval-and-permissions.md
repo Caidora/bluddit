@@ -172,3 +172,31 @@ No new support for pending/inactive GM accounts or schema changes was added.
 Verification: Ruff format/check, `git diff --check`, and `make verify` passed
 (17 API/unit tests, 31 PostgreSQL 17 integration tests, 18 infrastructure tests,
 frontend types/build, and both Compose configurations).
+
+### Route clarity and session revocation review — 2026-10-31
+
+Removed all private helpers from the account routes and repeated target lookup,
+GM protection, membership-transition validation, and update-conflict handling
+inside each explicit route. Contributor guidance now says to extract functionality
+deliberately and sparingly. Self-transfer returns before opening a repository
+transaction; current-GM authority and recipient state are still rechecked under
+lock before either succession write.
+
+Moved duplicated refresh-session revocation SQL out of membership operations into
+`AuthRepository.revoke_account_sessions`. Rejection/deactivation routes call it
+separately after a successful membership update. This supersedes earlier atomic
+membership/session-revocation notes: the review explicitly accepts separate
+commits and races. A revocation failure returns 503 while leaving membership
+revoked; live membership checks deny access, but reactivation can restore old
+sessions if revocation failed. Concurrent reactivation/login can also race with
+revocation. Updated the runbook and permission documentation accordingly. No
+schema changes or unrelated repository refactors.
+
+Verification: `make verify` passed with an isolated PostgreSQL 17 container:
+17 API/unit tests, 32 database integration tests, 18 infrastructure tests,
+frontend types/build, and both Compose configurations. Failure tests cover both
+rejection and deactivation, checking committed membership, immediate access denial,
+and retained sessions after reactivation when the separate revocation fails.
+Existing successful session-revocation, leadership concurrency, and atomic
+succession rollback checks pass. Ruff format/check and `git diff --check` passed.
+Maintainer approval, deployment, and production acceptance remain pending.

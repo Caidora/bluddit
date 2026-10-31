@@ -98,12 +98,16 @@ so run the Ruff commands explicitly.
   chained repository helpers. Keep ordinary authorization,
   membership transitions, and other business rules in API handlers/helpers, with
   a service layer only when needed. Avoid static methods in new repositories.
+  Extract functionality deliberately and sparingly; prefer inline route validation
+  when it makes the operation easier to follow.
   Existing repository patterns outside the current ticket can remain unchanged.
   Routes belong in `bluddit_api/routes`, with shared helpers in `bluddit_api/utils`.
   Repositories own operation-level transaction boundaries; dependency providers
   construct repositories without opening a request-wide transaction. Keep related
-  writes atomic where correctness requires it, such as membership revocation with
-  session revocation, or checking the current GM and transferring that role.
+  writes atomic where correctness requires it, such as checking the current GM
+  and transferring that role. Account session revocation is a separate auth
+  repository operation called by rejection/deactivation routes after the membership
+  update; the accepted failure/race tradeoff is documented in the runbook.
   Ordinary permission checks run in the API and may race with later changes.
   Handlers call repository operations without executing SQL or managing
   connections. Inject repositories into routes

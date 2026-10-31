@@ -375,11 +375,20 @@ async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatc
     assert sum(account["role_name"] == "guild_master" for account in accounts) == 1
 
 
-async def test_deactivation_rolls_back_if_session_revocation_fails(
-    members, monkeypatch
+@pytest.mark.parametrize(
+    "action,source,destination",
+    [("deactivate", "active", "inactive"), ("reject", "pending", "rejected")],
+)
+async def test_membership_commits_if_session_revocation_fails(
+    members, monkeypatch, action, source, destination
 ):
     client, database, _, users, tokens = members
 
+    async with database.transaction() as connection:
+        await connection.execute(
+            """UPDATE accounts SET membership_state = %(membership_state)s WHERE id = %(account_id)s""",
+            {"membership_state": source, "account_id": users["member"]},
+        )
     original = psycopg.AsyncConnection.execute
 
     async def fail_revocation(self, query, *args, **kwargs):
@@ -389,14 +398,24 @@ async def test_deactivation_rolls_back_if_session_revocation_fails(
 
     monkeypatch.setattr(psycopg.AsyncConnection, "execute", fail_revocation)
     response = await client.post(
-        f"/api/accounts/{users['member']}/deactivate", headers=tokens["officer_a"]
+        f"/api/accounts/{users['member']}/{action}", headers=tokens["officer_a"]
     )
     assert response.status_code == 503 and "injected failure" not in response.text
     assert (
         await client.get("/api/auth/me", headers=tokens["member"])
-    ).status_code == 200
+    ).status_code == 401
     account = await MembershipRepository(database).get_account(users["member"])
-    assert account["membership_state"] == "active"
+    assert account["membership_state"] == destination
+    monkeypatch.setattr(psycopg.AsyncConnection, "execute", original)
+    # The review accepts retained sessions if the separate revocation fails.
+    assert (
+        await client.post(
+            f"/api/accounts/{users['member']}/activate", headers=tokens["officer_a"]
+        )
+    ).status_code == 200
+    assert (
+        await client.get("/api/auth/me", headers=tokens["member"])
+    ).status_code == 200
 
 
 async def test_deactivation_cannot_remove_a_new_gm_after_api_precheck(
