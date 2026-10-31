@@ -48,7 +48,23 @@ jobs:
       - name: Install locked dependencies
         run: make setup
       - name: Install browser for account UI checks
-        run: cd apps/web && npx playwright install --with-deps chromium
+        working-directory: apps/web
+        timeout-minutes: 7
+        run: |
+          for attempt in 1 2; do
+            echo "Installing Chromium and system dependencies (attempt $attempt/2)"
+            if timeout --kill-after=10s 180s npx --no-install playwright install --with-deps chromium; then
+              exit 0
+            else
+              status=$?
+            fi
+            if [[ "$attempt" == 2 ]]; then
+              echo "::error::Browser installation failed after two attempts (last exit code: $status)."
+              exit "$status"
+            fi
+            echo "::warning::Browser installation failed or timed out (exit code: $status); retrying in 5 seconds."
+            sleep 5
+          done
       - name: Verify web, API, infrastructure, and configuration
         env:
           POSTGRES_PASSWORD: ci-disposable-password

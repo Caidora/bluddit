@@ -541,7 +541,14 @@ Install the browser once after `make setup`:
 cd apps/web && npx playwright install chromium
 ```
 
-Linux CI installs Chromium with `--with-deps`. `make web-test` runs Playwright;
+Linux CI installs Chromium with `--with-deps` using the locked local Playwright
+CLI. Each installation attempt has a three-minute limit, with forced termination
+after a further ten seconds if needed. A failed or stalled attempt is retried once
+after five seconds; two failures fail the job. The installation step also has a
+seven-minute limit so it cannot consume the whole verification job's budget.
+Installation attempt numbers and exit codes appear in the Actions log. Tests
+still run once and must pass; installation retries do not retry test failures.
+`make web-test` runs Playwright;
 `make verify` includes it. Set `TEST_DATABASE_URL` as described above to include
 the real registration/approval/login test. Without it, the frontend-only test
 command explicitly skips that integration test; full `make verify` still requires
