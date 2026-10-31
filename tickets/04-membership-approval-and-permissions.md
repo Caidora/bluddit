@@ -35,7 +35,8 @@ Implement meaningful checks for the behavior and failure paths above. Record com
 
 ## Completion notes
 
-Implemented on `feature/04-membership-permissions`, based on merged ticket 03
+Implemented in [PR #4](https://github.com/Caidora/bluddit/pull/4) on
+`feature/04-membership-permissions`, based on merged ticket 03
 commit `20419e4095d3288e4a400263f458da9c04b6e5f1`. Confirmed PR #3 merged and
 [workflow 41184400705](https://github.com/Caidora/bluddit/actions/runs/41184400705)
 passed verify, publish, production deployment, and public HTTPS smoke. Ticket 03's
