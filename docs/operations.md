@@ -237,29 +237,30 @@ operations. Pass values using `%s` placeholders and a separate parameter sequenc
 The block commits on success and rolls back on error. The migration CLI also uses
 async connections. No SQL string interpolation or ORM is used.
 
-Migration `0002_roles_and_permissions.sql` adds role and permission catalogs, a
-role-to-permission mapping, and one required role per account (default `member`).
+Migration `0001_accounts_and_sessions.sql` includes role and permission catalogs,
+a role-to-permission mapping, and one required role per account (default `member`).
 An account's effective permissions will be the union of its role mappings and
-its direct `permission_grants`. Existing direct capabilities are preserved as
-named permissions; existing accounts default to the member role. The known role
-names are seeded, but permission policy and role mappings are defined in ticket
-04, alongside membership gating and resource-scoped authorization. No access is
-granted merely by adding the schema.
+its direct `permission_grants`. The known role names are seeded, but permission
+policy and role mappings are defined in ticket 04, alongside membership gating
+and resource-scoped authorization. No access is granted merely by adding the schema.
 
-The second migration removes the reviewed username-format, membership-state, and
-token-hash-length checks; application validation belongs to the account/session
-and membership endpoints in tickets 03–04. It preserves case-insensitive username
-uniqueness, foreign keys, and the original migration's checksum. Existing
-installations apply the second migration without resetting data or the ledger.
+Username formatting, membership-state validation, and token-hash-length validation
+belong to the application endpoints in tickets 03–04. The migration retains
+case-insensitive username uniqueness and foreign keys.
 
 Migrations live inside the API package as `NNNN_description.sql`, starting at
 `0001`. Use `python -m bluddit_api.migrate status` or `apply` from the API environment.
 The runner holds a database advisory lock, verifies the ledger's filenames and
 SHA-256 checksums, and executes each pending migration and its ledger entry in
 one transaction. Only forward, transactional SQL is supported: do not include
-transaction-control statements or operations requiring autocommit. Add a new
-migration to change an applied schema; never edit an applied migration. A failed
-migration rolls back its own changes; earlier successful migrations remain applied.
+transaction-control statements or operations requiring autocommit. During PR
+review, edit the existing migration while it has not run in production. Once a
+migration has run in production, preserve its contents/checksum and add a new
+numbered migration for changes. Local/CI execution alone does not require a new
+migration. If an edited migration has run locally, recreate only that disposable
+development/test database; do not alter the ledger to bypass checksum validation
+or reset production/member data. A failed migration rolls back its own changes;
+earlier successful migrations remain applied.
 A retry safely skips successful migrations. Unexpected migration history or edited
 applied files blocks deployment until the compatible files/image are restored.
 

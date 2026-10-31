@@ -32,10 +32,12 @@ Implemented Psycopg 3.3.6 (binary) with psycopg-pool 3.3.3, a lifespan-managed
 async pool, explicit async transaction contexts and a shared FastAPI dependency.
 SQL values are supplied separately as parameters. No ORM or authentication routes.
 
-Added `0001_accounts_and_sessions.sql` for accounts, capabilities, and hashed-token
+Added `0001_accounts_and_sessions.sql` for accounts, roles, permissions, and hashed-token
 sessions. Usernames are unique regardless of case. Added forward-only `status` /
 `apply` CLI commands, a checksum ledger, advisory locking, and transactional
-migration execution. Applied migrations cannot be edited silently.
+migration execution. Checksum validation rejects silently edited migration history. Migrations become
+immutable once they have run in production; before then, PR revisions update the
+existing migration.
 
 Added database-independent liveness and database/migration readiness at
 `/api/health` and `/api/ready`. Local/reload Compose waits for a one-shot migration
@@ -81,16 +83,17 @@ Converted the shared pool, transaction dependency, FastAPI endpoints, migration
 runner/CLI, and existing integration checks to async connections and awaited I/O.
 The same three focused database checks remain; no schema-detail tests were added.
 
-Added forward migration `0002_roles_and_permissions.sql` instead of changing the
-already-recorded checksum for migration 0001. It removes the reviewed username,
-membership-state, and token-hash checks while retaining username uniqueness. It
-adds roles, permissions, role-to-permission mappings, and exactly one role per
-account, with direct grants supporting additional permissions. Existing accounts
-and grants are preserved; role-permission policy and application validation are
-implemented with the account/membership features in tickets 03–04.
+Updated migration `0001_accounts_and_sessions.sql` directly, since it has not run
+in production. It omits the reviewed username, membership-state, and token-hash
+checks while retaining username uniqueness. It includes roles, permissions,
+role-to-permission mappings, and exactly one role per account, with direct grants
+supporting additional permissions. Role-permission policy and application
+validation are implemented with the account/membership features in tickets 03–04.
+Recorded the migration-editing rule in `contributions.md`: revise an existing
+migration within its PR until it has run in production; only then add a new one.
+The PR contains one migration.
 
 Review-update verification: all 9 existing API/database checks passed with the
-disposable PostgreSQL database. The production API image built successfully.
-Its migration CLI detected and applied only migration 0002 over a migration-0001
-database containing a synthetic account and two direct grants; a rerun applied
-nothing, and the account and both grants remained. `git diff --check` passed.
+disposable PostgreSQL database after the async conversion. The production API
+image built successfully. The consolidated migration is verified from an empty
+disposable database and rerun without changes. No schema-detail tests were added.
