@@ -1,13 +1,12 @@
 """Officer membership administration and Guild Master succession."""
 
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
-from pydantic import BaseModel, ConfigDict
 
-from bluddit_api.utils.authorization import require_permission
+from bluddit_api.utils.authorization import require_permission, require_guild_master
 from bluddit_api.utils.dependencies import MembershipRepositoryDep
-from bluddit_api.utils.permissions import Permission, Role, RolePolicy
+from bluddit_api.utils.permissions import Permission, RolePolicy
 from bluddit_api.utils.security import MembershipState
 
 router = APIRouter(prefix="/api")
@@ -15,16 +14,8 @@ AccountId = Annotated[int, Path(gt=0)]
 AccountManager = Annotated[
     dict, Depends(require_permission(Permission.ACCOUNTS_MANAGE))
 ]
-RoleManager = Annotated[dict, Depends(require_permission(Permission.ROLES_ASSIGN))]
-GuildMaster = Annotated[
-    dict, Depends(require_permission(Permission.GUILD_MASTER_TRANSFER))
-]
+GuildMaster = Annotated[dict, Depends(require_guild_master)]
 PolicyReader = Annotated[dict, Depends(require_permission(Permission.POLICY_READ))]
-
-
-class RoleInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    role_name: Literal["member", "officer"]
 
 
 @router.get("/accounts")
@@ -46,33 +37,53 @@ async def account(
     return await repository.get_account(account_id)
 
 
-@router.post("/accounts/{account_id}/{action}")
-async def membership(
-    account_id: AccountId,
-    action: Literal["approve", "reject", "deactivate", "reactivate"],
-    actor: AccountManager,
-    repository: MembershipRepositoryDep,
+@router.post("/accounts/{account_id}/approve")
+async def approve(
+    account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
 ):
-    return await repository.manage(actor["id"], account_id, action)
+    return await repository.approve(actor["id"], account_id)
 
 
-@router.put("/accounts/{account_id}/role")
-async def assign_role(
-    account_id: AccountId,
-    body: RoleInput,
-    actor: RoleManager,
-    repository: MembershipRepositoryDep,
+@router.post("/accounts/{account_id}/reject")
+async def reject(
+    account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
 ):
-    return await repository.manage(
-        actor["id"], account_id, "role", Role(body.role_name)
-    )
+    return await repository.reject(actor["id"], account_id)
 
 
-@router.put("/accounts/{account_id}/guild-master")
-async def transfer_guild_master(
+@router.post("/accounts/{account_id}/deactivate")
+async def deactivate(
+    account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
+):
+    return await repository.deactivate(actor["id"], account_id)
+
+
+@router.post("/accounts/{account_id}/activate")
+async def activate(
+    account_id: AccountId, actor: AccountManager, repository: MembershipRepositoryDep
+):
+    return await repository.activate(actor["id"], account_id)
+
+
+@router.post("/accounts/{account_id}/promote-to-officer")
+async def promote_to_officer(
     account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
 ):
-    return await repository.manage(actor["id"], account_id, "transfer")
+    return await repository.promote_to_officer(actor["id"], account_id)
+
+
+@router.post("/accounts/{account_id}/demote-to-member")
+async def demote_to_member(
+    account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
+):
+    return await repository.demote_to_member(actor["id"], account_id)
+
+
+@router.post("/accounts/{account_id}/pass-guild-master")
+async def pass_guild_master(
+    account_id: AccountId, actor: GuildMaster, repository: MembershipRepositoryDep
+):
+    return await repository.pass_guild_master(actor["id"], account_id)
 
 
 @router.get("/permissions")

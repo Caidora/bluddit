@@ -1,10 +1,13 @@
 """Membership persistence and serialized administrative state transitions."""
 
+from contextlib import asynccontextmanager
+
 from psycopg.errors import UniqueViolation
 from psycopg.rows import dict_row
 
 from bluddit_api.database import Database
 from bluddit_api.utils.permissions import Permission, Role, RolePolicy
+from bluddit_api.utils.security import MembershipState
 
 
 class MembershipError(Exception):
@@ -38,16 +41,22 @@ class MembershipRepository:
         except UniqueViolation:
             raise MembershipError(409, "Username unavailable") from None
 
-    async def list_accounts(self, state: str | None, limit: int, offset: int):
+    async def list_accounts(
+        self, membership_state: str | None, limit: int, offset: int
+    ):
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
                 SELECT id, username, display_name, membership_state, role_name, timezone
                 FROM accounts
-                WHERE (%(state)s::text IS NULL OR membership_state = %(state)s)
+                WHERE (%(membership_state)s::text IS NULL OR membership_state = %(membership_state)s)
                 ORDER BY id LIMIT %(limit)s OFFSET %(offset)s
                 """,
-                {"state": state, "limit": limit, "offset": offset},
+                {
+                    "membership_state": membership_state,
+                    "limit": limit,
+                    "offset": offset,
+                },
             )
             cursor.row_factory = dict_row
             return await cursor.fetchall()
@@ -71,13 +80,50 @@ class MembershipRepository:
             raise MembershipError(404, "Account not found")
         return account
 
-    async def manage(
-        self, actor_id: int, target_id: int, action: str, role: Role | None = None
+    async def approve(self, actor_id: int, target_id: int):
+        return await self._transition_membership(
+            actor_id, target_id, {MembershipState.PENDING}, MembershipState.ACTIVE
+        )
+
+    async def reject(self, actor_id: int, target_id: int):
+        return await self._transition_membership(
+            actor_id, target_id, {MembershipState.PENDING}, MembershipState.REJECTED
+        )
+
+    async def deactivate(self, actor_id: int, target_id: int):
+        return await self._transition_membership(
+            actor_id, target_id, {MembershipState.ACTIVE}, MembershipState.INACTIVE
+        )
+
+    async def activate(self, actor_id: int, target_id: int):
+        return await self._transition_membership(
+            actor_id,
+            target_id,
+            {MembershipState.REJECTED, MembershipState.INACTIVE},
+            MembershipState.ACTIVE,
+        )
+
+    async def promote_to_officer(self, actor_id: int, target_id: int):
+        return await self._change_role(actor_id, target_id, Role.MEMBER, Role.OFFICER)
+
+    async def demote_to_member(self, actor_id: int, target_id: int):
+        return await self._change_role(actor_id, target_id, Role.OFFICER, Role.MEMBER)
+
+    async def pass_guild_master(self, actor_id: int, target_id: int):
+        async with self._administration(
+            actor_id, target_id, guild_master_only=True
+        ) as (connection, target):
+            if target["membership_state"] != MembershipState.ACTIVE:
+                raise MembershipError(409, "Guild Master recipient must be active")
+            # Demote first to satisfy the unique index; both writes commit atomically.
+            await self._set_role(connection, actor_id, Role.OFFICER)
+            await self._set_role(connection, target_id, Role.GUILD_MASTER)
+            return await self._get_account(connection, target_id)
+
+    @asynccontextmanager
+    async def _administration(
+        self, actor_id: int, target_id: int, *, guild_master_only: bool = False
     ):
-        permission = {
-            "role": Permission.ROLES_ASSIGN,
-            "transfer": Permission.GUILD_MASTER_TRANSFER,
-        }.get(action, Permission.ACCOUNTS_MANAGE)
         async with self.database.transaction() as connection:
             # Shared with first-officer bootstrap. All membership/role writers serialize.
             await connection.execute("""SELECT pg_advisory_xact_lock(730003)""")
@@ -89,59 +135,59 @@ class MembershipRepository:
                 {"account_ids": [actor_id, target_id]},
             )
             actor = await self._get_account(connection, actor_id)
-            if not RolePolicy.allows(actor, permission):
+            if not RolePolicy.allows(actor, Permission.ACCOUNTS_MANAGE):
                 raise MembershipError(403, "Permission denied")
+            if guild_master_only and actor["role_name"] != Role.GUILD_MASTER:
+                raise MembershipError(403, "Only the Guild Master may change roles")
             target = await self._get_account(connection, target_id)
             if target["role_name"] == Role.GUILD_MASTER:
                 raise MembershipError(403, "Guild Master changes require transfer")
-            if action in {"role", "transfer"} and actor_id == target_id:
+            if guild_master_only and actor_id == target_id:
                 raise MembershipError(403, "Cannot change your own role")
+            yield connection, target
 
-            if action == "transfer":
-                if target["membership_state"] != "active":
-                    raise MembershipError(409, "Guild Master recipient must be active")
-                # Demote first to satisfy the unique index; both writes commit atomically.
-                await self._set_role(connection, actor_id, Role.OFFICER)
-                await self._set_role(connection, target_id, Role.GUILD_MASTER)
-            elif action == "role":
-                if role not in {Role.MEMBER, Role.OFFICER}:
-                    raise MembershipError(422, "Role must be member or officer")
-                if target["role_name"] == role:
-                    raise MembershipError(409, "Account already has this role")
-                await self._protect_last_administrator(
-                    connection, target, role, target["membership_state"]
-                )
-                await self._set_role(connection, target_id, role)
-            else:
-                transitions = {
-                    "approve": ({"pending"}, "active"),
-                    "reject": ({"pending"}, "rejected"),
-                    "deactivate": ({"active"}, "inactive"),
-                    "reactivate": ({"rejected", "inactive"}, "active"),
-                }
-                if action not in transitions:
-                    raise MembershipError(422, "Unknown membership action")
-                sources, state = transitions[action]
-                if target["membership_state"] not in sources:
-                    raise MembershipError(409, "Invalid membership transition")
-                await self._protect_last_administrator(
-                    connection, target, target["role_name"], state
-                )
+    async def _transition_membership(
+        self,
+        actor_id: int,
+        target_id: int,
+        sources: set[MembershipState],
+        membership_state: MembershipState,
+    ):
+        async with self._administration(actor_id, target_id) as (connection, target):
+            if target["membership_state"] not in sources:
+                raise MembershipError(409, "Invalid membership transition")
+            await self._protect_last_administrator(
+                connection, target, target["role_name"], membership_state
+            )
+            await connection.execute(
+                """
+                UPDATE accounts SET membership_state = %(membership_state)s, updated_at = now()
+                WHERE id = %(account_id)s
+                """,
+                {"membership_state": membership_state.value, "account_id": target_id},
+            )
+            if membership_state != MembershipState.ACTIVE:
                 await connection.execute(
                     """
-                    UPDATE accounts SET membership_state = %(state)s, updated_at = now()
-                    WHERE id = %(account_id)s
+                    UPDATE refresh_sessions SET revoked_at = now()
+                    WHERE account_id = %(account_id)s AND revoked_at IS NULL
                     """,
-                    {"state": state, "account_id": target_id},
+                    {"account_id": target_id},
                 )
-                if state != "active":
-                    await connection.execute(
-                        """
-                        UPDATE refresh_sessions SET revoked_at = now()
-                        WHERE account_id = %(account_id)s AND revoked_at IS NULL
-                        """,
-                        {"account_id": target_id},
-                    )
+            return await self._get_account(connection, target_id)
+
+    async def _change_role(
+        self, actor_id: int, target_id: int, source: Role, role: Role
+    ):
+        async with self._administration(
+            actor_id, target_id, guild_master_only=True
+        ) as (connection, target):
+            if target["role_name"] != source:
+                raise MembershipError(409, "Invalid role transition")
+            await self._protect_last_administrator(
+                connection, target, role, target["membership_state"]
+            )
+            await self._set_role(connection, target_id, role)
             return await self._get_account(connection, target_id)
 
     @staticmethod
@@ -155,14 +201,16 @@ class MembershipRepository:
         )
 
     @staticmethod
-    async def _protect_last_administrator(connection, target, role: str, state: str):
+    async def _protect_last_administrator(
+        connection, target, role: str, membership_state: str
+    ):
         administrators = {Role.OFFICER, Role.GUILD_MASTER}
         if (
             target["membership_state"] != "active"
             or target["role_name"] not in administrators
         ):
             return
-        if state == "active" and role in administrators:
+        if membership_state == MembershipState.ACTIVE and role in administrators:
             return
         cursor = await connection.execute(
             """

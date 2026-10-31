@@ -17,10 +17,8 @@ class Permission(StrEnum):
     WISHLIST_EDIT_OWN = "wishlist.edit_own"
     SIGNUPS_EDIT_OWN = "signups.edit_own"
     ACCOUNTS_MANAGE = "accounts.manage"
-    ROLES_ASSIGN = "roles.assign"
     POLICY_READ = "policy.read"
     SHARED_RECORDS_CORRECT = "shared_records.correct"
-    GUILD_MASTER_TRANSFER = "guild_master.transfer"
 
 
 _MEMBER = frozenset(
@@ -35,7 +33,6 @@ _MEMBER = frozenset(
 _OFFICER = _MEMBER | frozenset(
     {
         Permission.ACCOUNTS_MANAGE,
-        Permission.ROLES_ASSIGN,
         Permission.POLICY_READ,
         Permission.SHARED_RECORDS_CORRECT,
     }
@@ -47,7 +44,7 @@ class RolePolicy:
         {
             Role.MEMBER: _MEMBER,
             Role.OFFICER: _OFFICER,
-            Role.GUILD_MASTER: _OFFICER | {Permission.GUILD_MASTER_TRANSFER},
+            Role.GUILD_MASTER: _OFFICER,
         }
     )
 

@@ -16,7 +16,7 @@ checks for organizer/quartermaster duties; implement those with their resources.
 - Add pending registration and officer approval/rejection endpoints and account deactivation. Validate and normalize usernames and validate membership-state transitions in the application layer.
 - Add reusable active-membership and permission checks. Document ownership and organizer/quartermaster attribute checks for later feature tickets. Officers may correct shared records through explicitly authorized feature actions.
 - Use exactly one role per account: Guild Master (`guild_master`), Officer (`officer`), or Member (`member`). All permissions come from role-to-permission mappings; do not add direct account grants. Define the permission catalog and default role mappings here, subject to active membership and resource scope. Organizer and quartermaster duties are permissions/scoped assignments, not separate roles.
-- Add account-role assignment and read-only permission catalog endpoints. Define mappings in a Python policy class; drop unused `role_permissions` and `permissions` tables while retaining `roles`. No policy-write endpoints or startup synchronization.
+- Add distinct GM-only promotion-to-Officer, demotion-to-Member, and GM-succession endpoints and repository methods. All use `accounts.manage` with an additional GM check. Add a read-only permission catalog. Define mappings in a Python policy class; drop unused `role_permissions` and `permissions` tables while retaining `roles`. No policy-write endpoints or startup synchronization.
 - Protect GM accounts from Officer changes. Only the active GM may transfer the role atomically to another active account, becoming an Officer. The repo manager establishes the first GM directly in PostgreSQL; enforce at most one GM and prevent ordinary GM deactivation/demotion.
 - Prevent removal or deactivation of the last active administrator (Officer or GM).
 - Revoking membership immediately prevents further use of existing sessions. Prevent users from granting themselves permissions.
@@ -25,8 +25,8 @@ checks for organizer/quartermaster duties; implement those with their resources.
 ## Acceptance and verification
 
 Pending users cannot access member records. Members cannot approve themselves or
-change roles. Officers can approve, reject, deactivate, reactivate, and manage
-authorized Member/Officer role assignments. Permission mappings are fixed in
+change roles. Officers can approve, reject, deactivate, and activate accounts.
+Only the current GM can promote/demote roles or pass GM. Permission mappings are fixed in
 code and exposed read-only. Concurrent administration preserves active leadership;
 GM transfer is atomic. Ownership and organizer-scope tests arrive with the
 resources in subsequent feature tickets, following the documented matrix.
@@ -85,3 +85,29 @@ Local verification on 2026-10-31:
 Pending: maintainer review, merge/Actions deployment, and production membership-flow
 acceptance with dedicated test records. No ticket 04 production verification or
 deployed version is claimed; leave status In progress until these are recorded.
+
+### PR review updates — 2026-10-31
+
+Addressed the review by replacing the action-dispatch repository method and
+generic mutation routes with seven explicit operations: approve, reject,
+deactivate, activate, promote to Officer, demote to Member, and pass Guild Master.
+Each route calls its corresponding repository method. Shared private helpers
+retain transaction/locking, membership-transition, and leadership safeguards.
+Repository parameters and SQL bindings now consistently use `membership_state`.
+
+All seven actions require `accounts.manage`. Promotion, demotion, and passing GM
+additionally require the current active GM, enforced at the route and rechecked
+inside the write transaction. Removed the separate role-assignment/GM-transfer
+permission names; Officers and GM have identical fixed permission sets, with
+the role attribute constraining these actions. Officer membership administration
+is retained. No migration changes are required.
+
+Updated API documentation, the permission matrix, and ticket 05 guidance. Tests
+exercise the explicit routes, Officer denial of role changes at both layers,
+GM-only promotion/demotion, live authority after succession, removed generic
+routes, and the preserved concurrent deactivation/GM-transfer safeguards.
+
+Verification: Ruff format/check, `git diff --check`, and `make verify` passed:
+16 API/unit tests, 31 PostgreSQL 17 integration tests, 18 infrastructure tests,
+frontend types/build, and both Compose configurations. Production verification
+and maintainer approval remain pending.

@@ -12,16 +12,16 @@ state on every request; pending, rejected, and inactive accounts have no access.
 | --- | --- | --- |
 | Register | Public | Always creates a pending Member; cannot supply role/state |
 | Login / refresh / current account | Active account | Valid credentials/session; `/me` only returns the caller |
-| List/read accounts; approve/reject/deactivate/reactivate | `accounts.manage` | Officers and GM; protected GM and membership-transition rules |
-| Assign Member/Officer role | `roles.assign` | No self-role changes; cannot modify GM; retain an active administrator |
+| List/read accounts; approve/reject/deactivate/activate | `accounts.manage` | Officers and GM; protected GM and membership-transition rules |
+| Promote to Officer / demote to Member | `accounts.manage` | GM only; explicit source role; no self-role changes or changes to GM; retain an active administrator |
 | Read policy | `policy.read` | Officers and GM; no mutation API |
-| Transfer GM | `guild_master.transfer` | Current active GM → different active account; atomic succession |
+| Pass GM | `accounts.manage` | Current active GM → different active account; atomic succession |
 
 Members have `guild.read`, `profile.edit_own`, `characters.edit_own`,
 `wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
-and add `accounts.manage`, `roles.assign`, `policy.read`, and
-`shared_records.correct`. The GM inherits Officer permissions and adds
-`guild_master.transfer`.
+and add `accounts.manage`, `policy.read`, and `shared_records.correct`. The GM has
+the same permission set as Officers. Role changes additionally require the actor
+to be the current GM, checked at both the route and within the write transaction.
 
 ## Contract for later feature tickets
 

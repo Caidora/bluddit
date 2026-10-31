@@ -12,7 +12,7 @@ from bluddit_api.utils.permissions import Permission, Role, RolePolicy
 
 def test_policy_is_immutable_and_requires_active_membership():
     assert RolePolicy.permissions(Role.MEMBER) < RolePolicy.permissions(Role.OFFICER)
-    assert RolePolicy.permissions(Role.OFFICER) < RolePolicy.permissions(
+    assert RolePolicy.permissions(Role.OFFICER) == RolePolicy.permissions(
         Role.GUILD_MASTER
     )
     assert not RolePolicy.permissions("unknown")

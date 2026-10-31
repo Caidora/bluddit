@@ -144,8 +144,8 @@ async def test_duplicate_registration_is_atomic(members):
         ("pending", "approve", "active"),
         ("pending", "reject", "rejected"),
         ("member", "deactivate", "inactive"),
-        ("rejected", "reactivate", "active"),
-        ("inactive", "reactivate", "active"),
+        ("rejected", "activate", "active"),
+        ("inactive", "activate", "active"),
     ],
 )
 async def test_membership_transitions(members, source, action, destination):
@@ -182,7 +182,7 @@ async def test_deactivation_revokes_all_sessions_permanently(members):
         )
         assert (await cursor.fetchone())[0] == 0
     assert (
-        await client.post(target + "/reactivate", headers=tokens["officer_a"])
+        await client.post(target + "/activate", headers=tokens["officer_a"])
     ).status_code == 200
     assert (
         await client.get("/api/auth/me", headers=tokens["member"])
@@ -199,80 +199,83 @@ async def test_deactivation_revokes_all_sessions_permanently(members):
 async def test_role_permissions_protected_gm_and_live_authority(members):
     client, database, _, users, tokens = members
     member = f"/api/accounts/{users['member']}"
-    officer = f"/api/accounts/{users['officer_a']}"
-    assert (
-        await client.put(
-            member + "/role", headers=tokens["member"], json={"role_name": "officer"}
-        )
-    ).status_code == 403
-    assert (
-        await client.put(
-            officer + "/role", headers=tokens["officer_a"], json={"role_name": "member"}
-        )
-    ).status_code == 403
-    assert (
-        await client.put(
-            member + "/role",
-            headers=tokens["officer_a"],
-            json={"role_name": "guild_master"},
-        )
-    ).status_code == 422
     assert (
         await client.get("/api/permissions", headers=tokens["member"])
     ).status_code == 403
     policy = await client.get("/api/permissions", headers=tokens["officer_a"])
-    assert (
-        policy.status_code == 200
-        and "guild_master.transfer" in policy.json()["roles"]["guild_master"]
-    )
+    assert policy.status_code == 200
+    assert "accounts.manage" in policy.json()["roles"]["guild_master"]
+    assert policy.json()["roles"]["officer"] == policy.json()["roles"]["guild_master"]
     assert (
         await client.put("/api/permissions", headers=tokens["officer_a"], json={})
     ).status_code == 405
+    # The generic mutation routes are gone.
     assert (
         await client.put(
             member + "/role", headers=tokens["officer_a"], json={"role_name": "officer"}
         )
-    ).status_code == 200
+    ).status_code == 404
     assert (
-        await client.get("/api/accounts", headers=tokens["member"])
-    ).status_code == 200
+        await client.put(member + "/guild-master", headers=tokens["officer_a"])
+    ).status_code == 404
     assert (
-        await client.put(
-            member + "/role", headers=tokens["officer_a"], json={"role_name": "member"}
-        )
-    ).status_code == 200
-    assert (
-        await client.get("/api/accounts", headers=tokens["member"])
-    ).status_code == 403
+        await client.post(member + "/activate-unknown", headers=tokens["officer_a"])
+    ).status_code == 404
     async with database.transaction() as connection:
         await connection.execute(
             """UPDATE accounts SET role_name = 'guild_master' WHERE id = %(id)s""",
             {"id": users["officer_b"]},
         )
     gm = f"/api/accounts/{users['officer_b']}"
-    for action in ("approve", "reject", "deactivate", "reactivate"):
+    for action in ("promote-to-officer", "demote-to-member", "pass-guild-master"):
+        for caller in ("member", "officer_a"):
+            assert (
+                await client.post(member + "/" + action, headers=tokens[caller])
+            ).status_code == 403
+        assert (
+            await client.post(gm + "/" + action, headers=tokens["officer_b"])
+        ).status_code == 403
+    assert (
+        await client.post(member + "/promote-to-officer", headers=tokens["officer_b"])
+    ).status_code == 200
+    assert (
+        await client.post(member + "/promote-to-officer", headers=tokens["officer_b"])
+    ).status_code == 409
+    assert (
+        await client.get("/api/accounts", headers=tokens["member"])
+    ).status_code == 200
+    assert (
+        await client.post(member + "/demote-to-member", headers=tokens["officer_b"])
+    ).status_code == 200
+    assert (
+        await client.post(member + "/demote-to-member", headers=tokens["officer_b"])
+    ).status_code == 409
+    assert (
+        await client.get("/api/accounts", headers=tokens["member"])
+    ).status_code == 403
+    for action in (
+        "approve",
+        "reject",
+        "deactivate",
+        "activate",
+        "promote-to-officer",
+        "demote-to-member",
+        "pass-guild-master",
+    ):
         assert (
             await client.post(gm + "/" + action, headers=tokens["officer_a"])
         ).status_code == 403
     assert (
-        await client.put(
-            gm + "/role", headers=tokens["officer_a"], json={"role_name": "member"}
-        )
-    ).status_code == 403
-    assert (
         await client.post(gm + "/deactivate", headers=tokens["officer_b"])
     ).status_code == 403
     assert (
-        await client.put(member + "/guild-master", headers=tokens["officer_a"])
-    ).status_code == 403
-    assert (
-        await client.put(
-            f"/api/accounts/{users['inactive']}/guild-master",
+        await client.post(
+            f"/api/accounts/{users['inactive']}/pass-guild-master",
             headers=tokens["officer_b"],
         )
     ).status_code == 409
     assert (
-        await client.put(member + "/guild-master", headers=tokens["officer_b"])
+        await client.post(member + "/pass-guild-master", headers=tokens["officer_b"])
     ).status_code == 200
     assert (await client.get("/api/auth/me", headers=tokens["officer_b"])).json()[
         "role_name"
@@ -280,13 +283,19 @@ async def test_role_permissions_protected_gm_and_live_authority(members):
     assert (await client.get("/api/auth/me", headers=tokens["member"])).json()[
         "role_name"
     ] == "guild_master"
+    assert (
+        await client.post(
+            f"/api/accounts/{users['officer_a']}/demote-to-member",
+            headers=tokens["officer_b"],
+        )
+    ).status_code == 403
 
 
 async def test_concurrent_deactivations_and_last_officer(members):
     _, _, repository, users, _ = members
     results = await asyncio.gather(
-        repository.manage(users["officer_a"], users["officer_b"], "deactivate"),
-        repository.manage(users["officer_b"], users["officer_a"], "deactivate"),
+        repository.deactivate(users["officer_a"], users["officer_b"]),
+        repository.deactivate(users["officer_b"], users["officer_a"]),
         return_exceptions=True,
     )
     assert sum(isinstance(r, dict) for r in results) == 1
@@ -295,19 +304,18 @@ async def test_concurrent_deactivations_and_last_officer(members):
         account = await repository.get_account(users[name])
         if account["membership_state"] == "active":
             with pytest.raises(MembershipError) as denied:
-                await repository.manage(users[name], users[name], "deactivate")
+                await repository.deactivate(users[name], users[name])
             assert denied.value.status == 409
 
 
-async def test_concurrent_role_changes_recheck_actor(members):
+@pytest.mark.parametrize(
+    "method", ["promote_to_officer", "demote_to_member", "pass_guild_master"]
+)
+async def test_repository_role_changes_require_gm_even_for_officers(members, method):
     _, _, repository, users, _ = members
-    results = await asyncio.gather(
-        repository.manage(users["officer_a"], users["officer_b"], "role", Role.MEMBER),
-        repository.manage(users["officer_b"], users["officer_a"], "role", Role.MEMBER),
-        return_exceptions=True,
-    )
-    assert sum(isinstance(r, dict) for r in results) == 1
-    assert sum(isinstance(r, MembershipError) and r.status == 403 for r in results) == 1
+    with pytest.raises(MembershipError) as denied:
+        await getattr(repository, method)(users["officer_a"], users["member"])
+    assert denied.value.status == 403
 
 
 async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatch):
@@ -327,13 +335,13 @@ async def test_gm_transfer_serialization_and_atomic_rollback(members, monkeypatc
 
     monkeypatch.setattr(repository, "_set_role", fail_promotion)
     with pytest.raises(RuntimeError, match="injected failure"):
-        await repository.manage(actor, users["member"], "transfer")
+        await repository.pass_guild_master(actor, users["member"])
     assert (await repository.get_account(actor))["role_name"] == "guild_master"
     assert (await repository.get_account(users["member"]))["role_name"] == "member"
     monkeypatch.setattr(repository, "_set_role", original)
     results = await asyncio.gather(
-        repository.manage(actor, users["member"], "transfer"),
-        repository.manage(actor, users["officer_b"], "transfer"),
+        repository.pass_guild_master(actor, users["member"]),
+        repository.pass_guild_master(actor, users["officer_b"]),
         return_exceptions=True,
     )
     assert sum(isinstance(r, dict) for r in results) == 1

@@ -82,7 +82,7 @@ All core actions should work comfortably on a phone, with clear forms and readab
 | Member | View member areas; edit own profile, characters, wishlist, and signups |
 | Organizer / squad lead | Manage assigned squads, events, and rosters |
 | Quartermaster | Maintain material routing and crafter assignments |
-| Officer / admin | Approve membership, assign authorized account roles, edit rules, and correct shared records |
+| Officer / admin | Approve membership, edit rules, and correct shared records; only the GM promotes/demotes account roles or passes GM |
 
 Use session-based authentication. Membership requires an invitation or officer approval.
 

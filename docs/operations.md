@@ -368,7 +368,9 @@ Two password hashing/verification operations can run concurrently to bound Argon
 ### Membership administration API
 
 All administrative endpoints require a current active Officer or Guild Master
-bearer token, except GM transfer, which requires the current active GM.
+bearer token. Promotion to Officer, demotion to Member, and passing Guild Master
+additionally require the current active GM. Each mutation has a distinct route
+and repository method, gated by `accounts.manage`.
 
 | Endpoint | Request / result |
 | --- | --- |
@@ -378,9 +380,10 @@ bearer token, except GM transfer, which requires the current active GM.
 | `POST /api/accounts/{account_id}/approve` | Pending → active |
 | `POST /api/accounts/{account_id}/reject` | Pending → rejected |
 | `POST /api/accounts/{account_id}/deactivate` | Active → inactive; revokes every refresh-session family atomically |
-| `POST /api/accounts/{account_id}/reactivate` | Rejected/inactive → active; requires a fresh login |
-| `PUT /api/accounts/{account_id}/role` | JSON `role_name: member\|officer`; no self-role changes or changes to GM accounts |
-| `PUT /api/accounts/{account_id}/guild-master` | Current GM transfers to another active account; outgoing GM becomes Officer atomically |
+| `POST /api/accounts/{account_id}/activate` | Rejected/inactive → active; requires a fresh login |
+| `POST /api/accounts/{account_id}/promote-to-officer` | GM only; Member → Officer |
+| `POST /api/accounts/{account_id}/demote-to-member` | GM only; Officer → Member |
+| `POST /api/accounts/{account_id}/pass-guild-master` | GM only; transfers to another active account; outgoing GM becomes Officer atomically |
 | `GET /api/permissions` | Read-only `{permissions, roles}` catalog and fixed mappings |
 
 Account results contain `id`, `username`, `display_name`, `membership_state`,
@@ -388,7 +391,8 @@ Account results contain `id`, `username`, `display_name`, `membership_state`,
 Mutations return the resulting target account. Unknown accounts return 404,
 invalid input 422, invalid state transitions/repeated actions/duplicate usernames
 409, missing or invalid authentication 401, and insufficient authority 403.
-Role changes take effect on existing bearer tokens at the next request.
+Role changes take effect on existing bearer tokens at the next request. The old
+generic role-update and GM-update PUT endpoints are not available.
 
 Membership mutations and first-officer bootstrap share advisory transaction lock
 730003. Mutations lock affected accounts in ID order and recheck caller authority
