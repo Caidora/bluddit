@@ -139,6 +139,22 @@ class DeploymentTests(unittest.TestCase):
                 self.operation.stage()
             command.assert_not_called()
 
+    def test_successful_stage_prepares_non_root_api_secret(self):
+        manifest = self.prepare_stage()
+        for relative in ("compose.production.yaml", "deploy.py", "smoke.py", "nginx/application.conf"):
+            destination = self.payload / "infra" / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((MODULE.parent / relative).read_bytes())
+        with self.operation.locked(), patch.object(deploy, "run"), patch.object(os, "chown") as chown:
+            deploy.write_private(self.operation.shared / "postgres_password", "test-password")
+            release = self.operation.stage()
+        api_password = self.operation.shared / "api_postgres_password"
+        chown.assert_called_once_with(api_password, 10001, 10001)
+        self.assertEqual(api_password.read_text(), "test-password")
+        self.assertEqual(api_password.stat().st_mode & 0o777, 0o400)
+        self.assertEqual(json.loads((release / "manifest.json").read_text())["release_id"], manifest["release_id"])
+        self.assertFalse((self.root / "current").exists())
+
     def test_database_password_cannot_be_silently_rotated(self):
         self.prepare_stage()
         with self.operation.locked(), patch.object(deploy, "run") as command:
