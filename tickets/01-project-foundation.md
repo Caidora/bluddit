@@ -2,6 +2,8 @@
 
 Status: Complete — confirmed by maintainer on 2026-10-31
 
+GitHub issue: [#21](https://github.com/Caidora/bluddit/issues/21). This document is retained as a completed-ticket reference.
+
 Dependencies: None.
 
 ## Outcome
