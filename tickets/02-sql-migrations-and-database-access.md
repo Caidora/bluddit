@@ -104,3 +104,14 @@ and `member`, and omits the direct permission-grants table. Accounts receive all
 permissions from their single role through `role_permissions`. Updated the
 operations docs and ticket 04 accordingly. The same three focused migration /
 readiness / rollback checks passed against a fresh disposable database.
+
+### Production staging fix — 2026-10-31
+
+[Main pipeline run 41179362704](https://github.com/Caidora/bluddit/actions/runs/41179362704)
+passed verification and publication, then failed before migrations/application
+rollout because `Path.chown()` does not exist. Replaced it with `os.chown()` for
+the UID/GID 10001 API secret. Added one successful-release-staging regression
+check: it reproduced the original exception before the fix, then passed with all
+18 infrastructure checks. `git diff --check` also passed. Production retry remains
+pending the fix's required PR review/merge; rerunning the old commit would repeat
+the same failure.

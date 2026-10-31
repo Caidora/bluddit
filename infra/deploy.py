@@ -186,7 +186,7 @@ class Deployment:
         # File-backed Compose secrets retain host ownership: the API runs as UID 10001.
         api_password = self.shared / "api_postgres_password"
         write_private(api_password, password.decode())
-        api_password.chown(10001, 10001)
+        os.chown(api_password, 10001, 10001)
         api_password.chmod(0o400)
         run(["docker", "volume", "create", "bluddit_postgres_data"])
         release = self.releases / release_id
