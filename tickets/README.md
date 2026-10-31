@@ -1,10 +1,16 @@
-# Release 1 implementation tickets
+# Implementation workflow and completed tickets
 
-Tickets 01–20 implement only [the release-1 feature plan](../website-feature-plan.md).
-Complete those tickets in numerical order, one at a time. Dependencies identify
-the earlier work each ticket relies on; the sequence is intentionally suitable
-for a single implementing AI. Separately scheduled maintenance is listed under
-Follow-up tickets.
+Active implementation work is tracked in [GitHub issues](https://github.com/Caidora/bluddit/issues).
+Each migrated issue contains the original ticket scope, dependencies, acceptance
+checks, status, and verification history. Historical ticket numbers in issue
+sections are distinct from GitHub issue numbers. Complete release-1 ticket
+sections in their original numerical order, one at a time, respecting their
+linked dependencies. Separately scheduled maintenance remains deferred as stated
+in its issue; migration does not authorize implementing it.
+
+Incomplete tickets are recorded only in GitHub issues. Record future progress,
+verification evidence, deployed versions, and unresolved acceptance items there.
+Completed ticket docs remain here as historical references, linked to their issues.
 
 ## Working rules
 
@@ -14,7 +20,7 @@ Follow-up tickets.
 - Use explicit parameterized SQL and numbered migrations, no ORM. Enforce permissions at the API, not just in the UI.
 - Bind SQL values with named placeholders (`%(account_id)s`) and a separate mapping;
   do not use positional `%s` placeholders or interpolate values into SQL.
-- Run appropriate checks and record evidence. Update the ticket status to Complete only when its acceptance conditions are met; otherwise record exactly what remains.
+- Run appropriate checks and record evidence. Close the GitHub issue as completed only when its acceptance conditions are met; otherwise record exactly what remains in the issue.
 - Use `ruff format` for changed Python files. Final checks include
   `ruff format --check`, `ruff check`, `make verify`, and `git diff --check`;
   see the contribution guide for command scope and documentation-only exceptions.
@@ -35,42 +41,14 @@ To make tickets executable without reopening routine design decisions:
 - Exact dependency versions, SQL driver, and test commands are chosen and documented during foundation work. Confirm the `ngpsql` wording against the Python backend before choosing a driver.
 - Server-specific rules, actual member identity mapping, real event times, credentials, and final cutover remain facts to confirm. Do not fabricate them or silently make template values live.
 
-## Ticket order
+## Completed ticket references
 
-| Ticket | Outcome | Depends on |
+| Ticket | Outcome | GitHub issue |
 | --- | --- | --- |
-| [01](./01-project-foundation.md) | Project foundation, CI, and Hetzner deployment | None |
-| [02](./02-sql-migrations-and-database-access.md) | SQL migrations and database access | 01 |
-| [03](./03-session-login-and-logout.md) | Session login and logout | 02 |
-| [04](./04-membership-approval-and-permissions.md) | Membership approval and permissions | 03 |
-| [05](./05-application-shell-and-account-screens.md) | Application shell and account screens | 04 |
-| [06](./06-member-profiles-and-characters.md) | Member profiles and characters | 05 |
-| [07](./07-roster-search-and-composition-summaries.md) | Roster search and composition summaries | 06 |
-| [08](./08-squads-flex-assignments-and-leveling-pairs.md) | Squads, flex assignments, and leveling pairs | 07 |
-| [09](./09-personal-gear-wishlist.md) | Personal gear wishlist | 06 |
-| [10](./10-guild-farming-priorities-and-completion-totals.md) | Guild farming priorities and completion totals | 09 |
-| [11](./11-event-creation-editing-and-local-times.md) | Event creation, editing, and local times | 08, 10 |
-| [12](./12-event-signups-and-roster-management.md) | Event signups and roster management | 11 |
-| [13](./13-material-routing-and-crafter-directory.md) | Material routing and crafter directory | 07 |
-| [14](./14-profession-and-camp-buff-coverage.md) | Profession and camp-buff coverage | 13 |
-| [15](./15-guild-handbook-and-revision-history.md) | Guild handbook and revision history | 05 |
-| [16](./16-member-home-page.md) | Member home page | 12, 14, 15 |
-| [17](./17-reviewed-sheet-import-and-member-confirmation.md) | Reviewed sheet import and member confirmation | 16 |
-| [18](./18-data-export-and-database-recovery.md) | Data export and database recovery | 17 |
-| [19](./19-production-operational-checks.md) | Production operational checks | 18 |
-| [20](./20-release-1-acceptance-and-cutover.md) | Release-1 acceptance and cutover | 19 |
-
-## Follow-up tickets
-
-These are separately scheduled maintenance work, outside the ordered release-1
-feature sequence above. Creating a ticket does not authorize implementing it now.
-
-| Ticket | Outcome | Depends on |
-| --- | --- | --- |
-| [21](./21-table-prefixed-id-columns.md) | Rename existing bare ID columns to table-prefixed IDs | 03 |
+| [01](./01-project-foundation.md) | Project foundation, CI, and Hetzner deployment | [#21](https://github.com/Caidora/bluddit/issues/21) |
 
 ## Definition of release completion
 
 The website supports the core workflows in all four sheet areas, and members can maintain their own information and join runs without editing the sheet. Correct permissions, regional event times, confirmed imports, recoverable data, and the pilot/cutover checks must all be verified.
 
-Ticket completion is tracked in each file. Planning these tickets does not mean implementation or launch has happened.
+Completion is tracked in GitHub issues. Migration does not mean implementation or launch has happened.

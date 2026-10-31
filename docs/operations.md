@@ -289,7 +289,7 @@ bare `id`. Foreign-key IDs use the referenced entity's prefix, so
 `sessions.account_id` references `accounts.account_id`. Keep natural/composite
 keys where appropriate; this rule does not require adding surrogate IDs.
 Existing bare `id` columns remain unchanged until
-[ticket 21](../tickets/21-table-prefixed-id-columns.md) is implemented.
+[issue #36](https://github.com/Caidora/bluddit/issues/36) (historical ticket 21) is implemented.
 
 Each account has one required role (default `member`).
 The seeded roles are Guild Master (`guild_master`), Officer (`officer`), and Member

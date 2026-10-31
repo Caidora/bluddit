@@ -4,12 +4,11 @@ Bluddit.com is the member website for Bluds, replacing the guild’s shared plan
 
 ## Project status
 
-Ticket 01 is complete, as confirmed by the maintainer. Ticket 02 adds database
-access and migrations. Ticket 03 authentication is merged and deployed; recorded
-feature acceptance remains pending. Ticket 04 membership administration and fixed
-Python permissions are merged; recorded production acceptance remains pending.
-Ticket 05 adds the application shell, account screens, and membership UI, with
-verification tracked in its ticket. See the tickets for verification and deployment evidence. Release 1 is the current scope.
+Ticket 01 is complete, as confirmed by the maintainer. Active work, recorded
+acceptance status, and deployment evidence are tracked in
+[GitHub issues](https://github.com/Caidora/bluddit/issues). The
+[completed ticket reference](tickets/01-project-foundation.md) retains foundation
+history. Release 1 is the current scope.
 
 ## Release 1
 
@@ -29,10 +28,11 @@ Members maintain their own information. Organizers manage assigned squads and ev
 - [Contribution guide](contributions.md): required PR workflow, review, checks, and implementation practices. Never commit or push directly to `main`.
 - [High-level plan](high-level-plan.md): guild purpose, source spreadsheet, and chosen stack.
 - [Release-1 feature plan](website-feature-plan.md): member functionality, permissions, and completion criteria.
-- [Implementation ticket index](tickets/README.md): ordered tickets, dependencies, implementation defaults, and working rules.
+- [Implementation workflow and completed tickets](tickets/README.md): working rules, implementation defaults, and historical references.
+- [GitHub issues](https://github.com/Caidora/bluddit/issues): active tickets, dependencies, progress, and acceptance evidence.
 - [Ticket 01](tickets/01-project-foundation.md): application foundation, basic CI, and initial production deployment to Hetzner.
 
-Complete tickets in numerical order, one at a time. Each ticket specifies implementation work and acceptance checks. The implementing AI records changes, verification evidence, deployed version, and unresolved items in the ticket before updating its status.
+Complete migrated release-1 ticket sections in their original numerical order, one at a time, respecting the dependencies linked in GitHub issues. Record changes, verification evidence, deployed versions, and unresolved items in the corresponding issue. Close it as completed only after acceptance passes.
 
 ## Technology and repository layout
 

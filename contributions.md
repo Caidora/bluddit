@@ -25,10 +25,11 @@ repository protection.
 ## Choose and scope work
 
 - Read the [README](README.md), [release-1 feature plan](website-feature-plan.md),
-  and [ticket index](tickets/README.md) before starting.
-- Complete implementation tickets in numerical order, one at a time, respecting
-  their dependencies. Coordinate with maintainers before taking a ticket or
-  changing its scope.
+  [implementation workflow](tickets/README.md), and corresponding
+  [GitHub issue](https://github.com/Caidora/bluddit/issues) before starting.
+- Complete migrated release-1 ticket sections in their original numerical order,
+  one at a time, respecting the dependencies linked in their GitHub issues.
+  Coordinate with maintainers before taking a ticket or changing its scope.
 - For a new bug or improvement, create or agree on an issue first. Include the
   problem, expected behavior, and reproduction steps where applicable.
 - Keep each PR focused on one ticket or coherent fix. Avoid unrelated refactors,
@@ -90,8 +91,8 @@ so run the Ruff commands explicitly.
   `refresh_sessions.refresh_session_id`, never a bare `id`. Foreign-key ID columns
   use the referenced entity's name, such as `sessions.account_id`. This applies to
   new schema work; existing bare `id` columns are tracked in
-  [ticket 21](tickets/21-table-prefixed-id-columns.md) and must not be renamed as
-  an unrelated change. Natural and composite keys do not need synthetic ID columns.
+  [issue #36](https://github.com/Caidora/bluddit/issues/36) (historical ticket 21)
+  and must not be renamed as an unrelated change. Natural and composite keys do not need synthetic ID columns.
 - Keep application SQL in repository methods, using one triple-quoted string per
   query. Repository methods represent complete persistence operations and may
   execute multiple queries in one transaction; do not split an operation into
@@ -160,7 +161,7 @@ Use hidden terminal prompts; never put passwords in commands, logs, or PRs.
 After merging an implementation ticket, confirm deployment succeeded and verify
 its acceptance criteria in production using dedicated test records, preserving
 member data. Record implementation details, verification evidence, deployed
-version, and unresolved items in the ticket. Mark it Complete only when all its
-acceptance conditions are met. Any follow-up documentation changes also go through
-a PR. For a failed deployment, follow the runbook's recovery procedure and record
+version, and unresolved items in the GitHub issue. Close it as completed only
+when all its acceptance conditions are met. Any follow-up documentation changes
+also go through a PR. For a failed deployment, follow the runbook's recovery procedure and record
 what remains unresolved.
