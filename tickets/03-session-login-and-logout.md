@@ -148,3 +148,16 @@ repository's `postgres:17-bookworm` image. New checks exercise injected reposito
 through login, current-account, refresh, logout, and readiness without a database,
 and confirm readiness behavior when no database is configured. Maintainer review,
 merge/Actions deployment, and production acceptance remain pending.
+
+### Repository dependency aliases review — 2026-10-31
+
+Added reusable `Annotated` aliases `AuthRepositoryDep` and `HealthRepositoryDep`
+and used them in all repository-injected routes and the current-account helper,
+as requested in the latest PR #3 comment. Existing provider functions remain
+available for dependency overrides. Updated contributor and runbook examples.
+
+Verification: Ruff format/check, `git diff --check`, and `make verify` passed:
+frontend types/build, 15 API/unit checks, 15 PostgreSQL 17 integration checks,
+18 infrastructure checks, and Compose configuration validation. Existing
+repository-override tests pass with the aliases. Deployment and production
+acceptance remain pending.

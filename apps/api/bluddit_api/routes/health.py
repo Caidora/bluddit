@@ -1,13 +1,12 @@
 """Public process health and database readiness routes."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 import psycopg
 from psycopg_pool import PoolTimeout
 
 from bluddit_api.migrate import MigrationError
-from bluddit_api.repositories.health import HealthRepository
-from bluddit_api.utils.dependencies import get_health_repository
+from bluddit_api.utils.dependencies import HealthRepositoryDep
 
 router = APIRouter(prefix="/api")
 
@@ -20,7 +19,7 @@ async def health() -> dict[str, str]:
 @router.get("/ready")
 async def ready(
     request: Request,
-    repository: HealthRepository | None = Depends(get_health_repository),
+    repository: HealthRepositoryDep,
 ):
     if repository is not None:
         try:

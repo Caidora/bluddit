@@ -96,7 +96,8 @@ so run the Ruff commands explicitly.
   one triple-quoted string per query. Routes belong in `bluddit_api/routes`, with
   shared helpers in `bluddit_api/utils`; routes and account CLI handlers call
   repositories rather than managing connections. Inject repositories into routes
-  and request dependencies through FastAPI `Depends` providers; construct them in
+  and request dependencies using reusable `Annotated` aliases such as
+  `AuthRepositoryDep`. Define the aliases and their FastAPI `Depends` providers in
   `bluddit_api/utils/dependencies.py`. Pool lifecycle and migration
   tooling remain infrastructure concerns.
 - During review, update the existing migration in the same PR if it has not run
