@@ -8,9 +8,15 @@ The current plan sheets can be found in https://docs.google.com/spreadsheets/d/1
 
 The website should be a replacement of the sheets.
 
+Design direction:
+
+- Bluddit should take inspiration from Reddit, with a goofy, lighthearted personality that fits the guild's relaxed, positive mindset.
+- When adding new features, look for useful ways to bring in playful Reddit-inspired design and interactions, such as upvotes and downvotes on messages.
+- Treat Reddit as inspiration rather than a requirement to copy its entire UI. Prioritize usability, accessibility, and clear guild workflows whenever a Reddit-style pattern would get in the way.
+
 Tech stack:
 
-- React router framework
+- React Router framework with client-side rendering (CSR / SPA mode), not SSR
 - fastapi
 - nginx
 - postgres

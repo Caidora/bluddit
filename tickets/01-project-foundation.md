@@ -10,7 +10,7 @@ Create a runnable application skeleton, basic CI, and a working production deplo
 
 ## Implementation
 
-- Create `apps/web` for the React Router framework application, `apps/api` for FastAPI, and `infra` for deployment configuration.
+- Create `apps/web` for the React Router framework CSR application (SPA mode), `apps/api` for FastAPI, and `infra` for deployment configuration.
 - Add dependency manifests, lockfiles, environment examples, and root development instructions. Select supported versions at implementation time and record them.
 - Add an API health endpoint, a basic web route, and PostgreSQL service configuration.
 - Add a local Compose setup and a documented command for each common development action.
@@ -33,7 +33,7 @@ Implement meaningful checks for the behavior and failure paths above. Record com
 
 ## Completion notes
 
-Implemented React Router framework SSR web skeleton, FastAPI process health, locked
+Implemented React Router framework CSR web skeleton (SPA mode), FastAPI process health, locked
 dependencies, production Dockerfiles, local/reload Compose, private PostgreSQL,
 and same-origin Nginx routing. Selected Psycopg 3 for ticket 02; no migrations yet.
 
@@ -46,6 +46,19 @@ Local evidence so far: web type checks and production build passed; six API test
 passed; nine deployment failure-path tests passed; base/development Compose config
 validation passed; production containers built and local web/API smoke passed at
 port 18081 (8080 was already occupied). Docker Desktop was started for verification.
+
+CSR update: disabled runtime server rendering with React Router SPA mode. The
+production web image now serves only `build/client` using non-root Nginx on port
+3000, with frontend route fallback and missing-asset 404s. Removed the React Router
+runtime server dependency and updated rendering guidance across the plans/runbook.
+Web type checks passed locally; the production Docker build passed type checks
+and SPA generation. The host build hit sandbox restrictions on the temporary
+Vite preview listener; the same build passed inside Docker. All 16 infrastructure
+tests passed. An isolated production-style Compose stack passed the updated web/API
+smoke check (loading shell, JS/CSS assets, nested route fallback, missing-asset 404,
+and API health), then its disposable containers and volume were removed. The web
+container also passed UID 1000 verification. Browser JavaScript execution and
+production deployment of this change have not been verified.
 
 Hetzner readiness workflow run 41170139868 passed after DEPLOY_PATH was corrected.
 It reported Docker/Compose setup required, HTTP/HTTPS ports available, application

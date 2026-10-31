@@ -16,7 +16,7 @@ These tickets implement only [the release-1 feature plan](../website-feature-pla
 
 To make tickets executable without reopening routine design decisions:
 
-- Use one guild and one same-origin website/API deployment.
+- Use one guild and one same-origin website/API deployment. Render the frontend client-side with React Router SPA mode; use FastAPI for backend operations.
 - Establish production hosting on the existing Hetzner server in ticket 01. Test deployed behavior in production throughout implementation; no separate staging environment is planned. Local and CI tests still run before deployment.
 - Use username/password accounts with officer-approved registration and server-side sessions. Password recovery uses an administrative CLI; no email or third-party login integration is included.
 - Members may have multiple characters but at most one active main. Composition counts active mains; alts are separately visible.

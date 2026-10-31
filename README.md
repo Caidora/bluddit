@@ -21,6 +21,7 @@ Members maintain their own information. Organizers manage assigned squads and ev
 
 ## Plans and tickets
 
+- [Contribution guide](contributions.md): required PR workflow, review, checks, and implementation practices. Never commit or push directly to `main`.
 - [High-level plan](high-level-plan.md): guild purpose, source spreadsheet, and chosen stack.
 - [Release-1 feature plan](website-feature-plan.md): member functionality, permissions, and completion criteria.
 - [Implementation ticket index](tickets/README.md): ordered tickets, dependencies, implementation defaults, and working rules.
@@ -30,7 +31,7 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 
 ## Technology and repository layout
 
-- React Router framework frontend in `apps/web`.
+- React Router framework frontend using client-side rendering (CSR / SPA mode) in `apps/web`.
 - FastAPI backend in `apps/api`.
 - PostgreSQL with explicit parameterized SQL and numbered migrations; no ORM.
 - Nginx and deployment configuration in `infra`.

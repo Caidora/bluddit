@@ -20,6 +20,10 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 }
 
+export function HydrateFallback() {
+  return <main><p role="status">Loading Bluddit…</p><noscript>Enable JavaScript to use Bluddit.</noscript></main>;
+}
+
 export default function App() {
   return <Outlet />;
 }

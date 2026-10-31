@@ -101,4 +101,4 @@ Use session-based authentication. Membership requires an invitation or officer a
 
 Release 1 is complete when members can maintain their own characters and wishlists, find crafters and guild rules, and join a run without using the spreadsheet. Organizers can see member needs, assign a roster, and communicate one correct event time across regions.
 
-Use the stack specified in `high-level-plan.md`: React Router framework, FastAPI, PostgreSQL with explicit SQL and no ORM, Nginx, session authentication, Docker Compose, and GitHub Actions.
+Use the stack specified in `high-level-plan.md`: React Router framework with client-side rendering (CSR / SPA mode), FastAPI, PostgreSQL with explicit SQL and no ORM, Nginx, session authentication, Docker Compose, and GitHub Actions.

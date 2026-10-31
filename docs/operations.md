@@ -2,17 +2,35 @@
 
 ## Selected versions
 
-Node 24 LTS (see `.nvmrc`), React Router 8.5.1 framework mode with SSR,
+Node 24 LTS (see `.nvmrc`), React Router 8.5.1 framework SPA mode with CSR (`ssr: false`),
 React 19.3.1, Vite 8.3.5, TypeScript 7.0.2, Python 3.13, uv 0.6.13,
 FastAPI 0.162.0, Uvicorn 0.54.0, pytest 9.2.0, and HTTPX 0.28.1.
 The npm and uv lockfiles record all resolved dependencies. CI installs from them.
-Containers use Node 24/Python 3.13 Debian Bookworm slim, PostgreSQL 17 Bookworm,
-and stable Alpine Nginx. Production resolves and tests immutable image digests.
+Build/development containers use Node 24/Python 3.13 Debian Bookworm slim.
+Production serves the static frontend with stable Alpine Nginx as UID 1000,
+alongside the Python API, PostgreSQL 17 Bookworm, and the Nginx reverse proxy. Production resolves and tests immutable image digests.
 Base-image patch updates are picked up by a new build, not by restarting a release.
 
 The Python PostgreSQL driver decision is **Psycopg 3**, using explicit parameterized
 SQL and no ORM. Ticket 02 adds the dependency, pooling, readiness, and migrations.
 There are no application migrations or authentication features in ticket 01.
+
+## Frontend rendering
+
+The frontend uses [React Router SPA mode](https://reactrouter.com/how-to/spa).
+`npm run build` generates `apps/web/build/client`; production serves only these
+static files with Nginx on port 3000, without a Node application server.
+Nginx falls back to `index.html` for frontend routes so direct links and refreshes
+work. Missing assets return 404. The outer proxy continues routing `/api/` to FastAPI.
+Development uses the React Router/Vite development server on the same port.
+
+Use browser-side fetching or `clientLoader`/`clientAction` for API calls; backend
+logic, authentication, and authorization live in FastAPI. React Router generates
+the loading shell at build time, so keep the root's initial render safe to execute
+without browser globals. `@react-router/node` is retained for this build step.
+
+The HTTP smoke check validates the SPA shell, referenced assets, route fallback,
+and API health; it does not execute JavaScript or verify the rendered page UI.
 
 ## Fresh checkout
 
