@@ -6,9 +6,10 @@ Bluddit.com is the member website for Bluds, replacing the guild’s shared plan
 
 Ticket 01 is complete, as confirmed by the maintainer. Ticket 02 adds database
 access and migrations. Ticket 03 authentication is merged and deployed; recorded
-feature acceptance remains pending. Ticket 04 adds membership administration and
-fixed Python permissions, with review and production acceptance pending. See the
-tickets for verification and deployment evidence. Release 1 is the current scope.
+feature acceptance remains pending. Ticket 04 membership administration and fixed
+Python permissions are merged; recorded production acceptance remains pending.
+Ticket 05 adds the application shell, account screens, and membership UI, with
+verification tracked in its ticket. See the tickets for verification and deployment evidence. Release 1 is the current scope.
 
 ## Release 1
 
@@ -42,9 +43,11 @@ Complete tickets in numerical order, one at a time. Each ticket specifies implem
 - Docker containers and Docker Compose for local development and the server.
 - GitHub Actions for CI and deployment.
 
-The application includes a minimal public page, health/readiness checks, and the
-authentication/membership APIs and account-recovery CLI. Account screens arrive
-in ticket 05. The [permission matrix](docs/permissions.md) documents current gates
+The application includes health/readiness checks, authentication/membership APIs,
+an account-recovery CLI, and ticket 05 account screens. The frontend uses shadcn/ui
+and TanStack Query with shared HTTP/session handling and feature-owned typed API
+modules. See the [web README](apps/web/README.md) for frontend architecture
+conventions. The [permission matrix](docs/permissions.md) documents current gates
 and resource checks required by later features.
 The Python database driver is Psycopg 3, with a shared connection pool, explicit
 SQL transactions, and numbered migrations. There is no ORM.
@@ -63,7 +66,8 @@ Open [the local website](http://localhost:8080). Use `make dev` for source reloa
 `make down` to stop while preserving data, and `make logs` for local logs.
 If port 8080 is occupied, set `LOCAL_PORT` in `.env`.
 
-For host checks, install Node 24, Python 3.13, and uv 0.6.13, then run `make setup`.
+For host checks, install Node 24, Python 3.13, and uv 0.6.13, then run `make setup`
+and install Chromium with `cd apps/web && npx playwright install chromium`.
 Set `TEST_DATABASE_URL` to a disposable PostgreSQL database ending in `_test` before
 running `make verify`; the test user needs permission to create disposable databases. Exact selected dependencies, configuration, and all development
 and deployment commands are in the [operations runbook](docs/operations.md).

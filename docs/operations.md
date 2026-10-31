@@ -502,3 +502,52 @@ clear a newer session; if another tab won the race, retry refresh once under the
 shared lock with the current cookie. If that also fails, require login. Logout
 must clear the tab's memory and notify other tabs even when its server request
 fails, while making the server failure visible to the user.
+
+## Account UI and shell (ticket 05)
+
+The entry route `/` sends visitors to `/login` or authenticated members to `/home`.
+Registration at `/register` creates a pending account and opens `/pending-approval`;
+it does not create a session or expose membership status publicly. Officers use
+`/admin/accounts`; Officers and GM can read `/admin/permissions`. GM-only role and
+succession controls use the existing explicit account endpoints. Unbuilt member
+features show temporary empty states. Password recovery remains the administrative
+CLI workflow above.
+
+The frontend uses local shadcn/ui primitives, Tailwind CSS, and a dark theme.
+`apps/web/app/features/` groups screens, API contracts, and query options by feature.
+`lib/http.ts` owns shared HTTP handling; `features/auth/session.ts` owns in-memory
+tokens and coordinated refresh/logout. Feature `queries.ts` modules own query keys
+and mutation invalidation. Routes are thin screen entry points; components do not
+call fetch or duplicate API interfaces. Account writes invalidate account lists, the
+affected detail, and session data without invalidating unrelated features. Temporary
+background session errors preserve the mounted screen and show a retry notice;
+confirmed session loss still clears access. See the
+[web architecture README](../apps/web/README.md) for conventions and rationale.
+Protected query keys include the acting account ID. Logout/session changes cancel
+protected requests and remove cached member data. No query persistence is enabled;
+credentials are read by mutation functions without entering mutation variables,
+and access tokens remain solely in the session module's memory. Modern browsers
+with Web Locks and BroadcastChannel over HTTPS (or localhost development) are
+required. There are no new environment variables or database migrations.
+
+For host development, `npm --prefix apps/web run dev` proxies `/api` to an API on
+`127.0.0.1:8000`. Set the API's `AUTH_ALLOWED_ORIGINS` to the exact frontend origin,
+for example `http://localhost:3000`. Compose continues to use its same-origin Nginx
+proxy and existing allowed origins.
+
+Install the browser once after `make setup`:
+
+```sh
+cd apps/web && npx playwright install chromium
+```
+
+Linux CI installs Chromium with `--with-deps`. `make web-test` runs Playwright;
+`make verify` includes it. Set `TEST_DATABASE_URL` as described above to include
+the real registration/approval/login test. Without it, the frontend-only test
+command explicitly skips that integration test; full `make verify` still requires
+the variable for database checks. The browser fixture requires a database name
+ending in `_test`, creates a separate random database, applies current migrations,
+seeds a synthetic GM, runs a test-only API on loopback port 18005, and drops the
+isolated database on shutdown. It never seeds the member database. Playwright
+reserves loopback port 4173 for its frontend. Synthetic fixture passwords are
+public test data and must never be reused for real accounts.
