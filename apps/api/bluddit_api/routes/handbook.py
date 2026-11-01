@@ -21,6 +21,7 @@ from bluddit_api.utils.permissions import Permission
 router = APIRouter(prefix="/api/handbook", tags=["handbook"])
 Reader = Annotated[Account, Depends(require_permission(Permission.GUILD_READ))]
 Editor = Annotated[Account, Depends(require_permission(Permission.HANDBOOK_EDIT))]
+Deleter = Annotated[Account, Depends(require_permission(Permission.HANDBOOK_DELETE))]
 Slug = Annotated[str, Path(pattern=r"^[a-z][a-z0-9-]{0,79}$")]
 
 
@@ -90,7 +91,7 @@ async def revisions(
 async def delete_section(
     slug: Slug,
     query: Annotated[HandbookDelete, Query()],
-    actor: Editor,
+    actor: Deleter,
     repository: HandbookRepositoryDep,
 ) -> Response:
     try:

@@ -403,9 +403,9 @@ test('read errors retry and missing sections provide a route back', async ({ pag
 });
 
 for (const width of [320, 1280]) {
-  test(`officer confirms permanent deletion with keyboard at ${width}px`, async ({ page, context }) => {
+  test(`GM confirms permanent deletion with keyboard at ${width}px`, async ({ page, context }) => {
     await page.setViewportSize({ width, height: 900 });
-    await mockApi(context, officer());
+    await mockApi(context, officer('guild_master'));
     const api = await handbookApi(context, [original]);
     await page.goto('/handbook?q=scheduling');
     await page.getByRole('link', { name: original.title, exact: true }).click();
@@ -452,7 +452,7 @@ for (const width of [320, 1280]) {
 }
 
 test('deletion failure is retryable and stale deletion requires reload and fresh confirmation', async ({ page, context }) => {
-  await mockApi(context, officer());
+  await mockApi(context, officer('guild_master'));
   const api = await handbookApi(context, [original]);
   await page.goto('/handbook/scheduling');
   await page.getByRole('button', { name: 'Delete section' }).click();
@@ -479,7 +479,7 @@ test('deletion failure is retryable and stale deletion requires reload and fresh
 });
 
 test('section already deleted elsewhere offers return to handbook', async ({ page, context }) => {
-  await mockApi(context, officer());
+  await mockApi(context, officer('guild_master'));
   const api = await handbookApi(context, [original]);
   await page.goto('/handbook/scheduling');
   await page.getByRole('button', { name: 'Delete section' }).click();
@@ -490,4 +490,15 @@ test('section already deleted elsewhere offers return to handbook', async ({ pag
   await dialog.getByRole('button', { name: 'Back to handbook' }).click();
   await expect(page).toHaveURL(/\/handbook$/);
   await expect(page.getByRole('heading', { name: 'No handbook sections yet' })).toBeVisible();
+});
+
+
+test('officers can edit and view revisions but cannot delete sections', async ({ page, context }) => {
+  await mockApi(context, officer());
+  await handbookApi(context, [original]);
+  await page.goto('/handbook/scheduling');
+  await expect(page.getByRole('button', { name: 'Edit section' })).toBeVisible();
+  await page.getByRole('button', { name: 'View revisions' }).click();
+  await expect(page.locator('summary')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Delete section' })).toHaveCount(0);
 });

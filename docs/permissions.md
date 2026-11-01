@@ -16,7 +16,8 @@ state on every request; pending, rejected, and inactive accounts have no access.
 | Promote to Officer / demote to Member | `accounts.manage` | GM only; explicit source role; no self-role changes or changes to GM; retain an active administrator |
 | Read policy | `policy.read` | Officers and GM; no mutation API |
 | Read/search handbook | `guild.read` | Active member; current published content |
-| Create/edit/delete handbook; read revisions | `handbook.edit` | Officer/GM; server-attributed author; stable slug; expected revision required for edits and deletion; deletion removes all revisions |
+| Create/edit handbook; read revisions | `handbook.edit` | Officer/GM; server-attributed author; stable slug; expected revision required for edits |
+| Delete handbook sections | `handbook.delete` | GM only; expected revision required; deletion removes all revisions |
 | Read Bluds and game references | `bluds.view` | Active member; includes archived records |
 | Create Blud | `bluds.edit_own` | Owner is always the caller |
 | Edit/archive/restore own Blud | `bluds.view` + `bluds.edit_own` | Persisted `account_id` matches caller; ownership cannot change |
@@ -26,7 +27,7 @@ state on every request; pending, rejected, and inactive accounts have no access.
 Members have `guild.read`, `bluds.view`, `bluds.edit_own`, `profile.edit_own`, `characters.edit_own`,
 `wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
 and add `accounts.manage`, `policy.read`, `handbook.edit`, and
-`shared_records.correct`. The GM has the same permission set as Officers. Role changes additionally require the actor
+`shared_records.correct`. The GM also has `handbook.delete`. Role changes additionally require the actor
 to be the current GM. The API checks this at the endpoint gate. Ordinary permission
 checks may race with later account changes. Passing GM additionally rechecks the
 caller against locked records inside the repository operation's transaction,

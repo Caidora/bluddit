@@ -24,6 +24,7 @@ class Permission(StrEnum):
     SIGNUPS_EDIT_OWN = "signups.edit_own"
     ACCOUNTS_MANAGE = "accounts.manage"
     HANDBOOK_EDIT = "handbook.edit"
+    HANDBOOK_DELETE = "handbook.delete"
     POLICY_READ = "policy.read"
     SHARED_RECORDS_CORRECT = "shared_records.correct"
 
@@ -54,7 +55,7 @@ class RolePolicy:
         {
             Role.MEMBER: _MEMBER,
             Role.OFFICER: _OFFICER,
-            Role.GUILD_MASTER: _OFFICER,
+            Role.GUILD_MASTER: _OFFICER | frozenset({Permission.HANDBOOK_DELETE}),
         }
     )
 

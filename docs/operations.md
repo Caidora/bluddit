@@ -588,7 +588,7 @@ delete history as part of an application rollback.
 Officers and the GM use **Guild Handbook → Add section** to publish a title and
 Markdown body with a permanent URL slug. A save publishes immediately. Edits
 record the authenticated author's account ID and a timestamp in a new immutable
-revision while the section exists. Officers and the GM can permanently delete a
+revision while the section exists. Only the GM can permanently delete a
 whole section, including every revision, after confirming **Delete section**.
 The UI shows the author's current display name and account ID; changing
 a display name does not change the author ID. Members can read and search current
@@ -610,7 +610,7 @@ The API contracts (also available at `/api/docs`) are:
 | `POST /api/handbook` | Officer/GM (`handbook.edit`) | `{slug, title, body}`; returns 201 with revision 1, or 409 for a duplicate slug |
 | `GET /api/handbook/{slug}` | Active member | Current section, or 404 |
 | `PUT /api/handbook/{slug}` | Officer/GM (`handbook.edit`) | `{title, body, expected_revision}`; returns the next revision, or 409 for a stale edit |
-| `DELETE /api/handbook/{slug}?expected_revision=N` | Officer/GM (`handbook.edit`) | Positive revision required; permanently deletes the section and all revisions; empty 204 on success, 404 if missing, 409 if changed |
+| `DELETE /api/handbook/{slug}?expected_revision=N` | GM only (`handbook.delete`) | Positive revision required; permanently deletes the section and all revisions; empty 204 on success, 404 if missing, 409 if changed |
 | `GET /api/handbook/{slug}/revisions?limit=10&offset=0` | Officer/GM (`handbook.edit`) | `{revisions: [...], limit, offset}`, newest first; limit 1–50, offset ≥ 0; 404 for missing section |
 
 Slugs start with a lowercase letter and contain up to 80 lowercase letters,

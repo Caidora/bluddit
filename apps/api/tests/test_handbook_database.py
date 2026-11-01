@@ -266,10 +266,15 @@ async def test_delete_removes_all_revisions_and_allows_slug_reuse(handbook):
     )
     assert (await client.delete(path + "?expected_revision=2")).status_code == 401
     assert (
+        await client.delete(path + "?expected_revision=2", headers=tokens["officer"])
+    ).status_code == 403
+    assert (
         await client.delete(path + "?expected_revision=2", headers=tokens["member"])
     ).status_code == 403
     assert (
-        await client.delete(path + "?expected_revision=1", headers=tokens["officer"])
+        await client.delete(
+            path + "?expected_revision=1", headers=tokens["guild_master"]
+        )
     ).status_code == 409
     assert (await client.get(path, headers=tokens["member"])).json()["revision"] == 2
     response = await client.delete(
@@ -281,7 +286,9 @@ async def test_delete_removes_all_revisions_and_allows_slug_reuse(handbook):
             await client.get(path + suffix, headers=tokens["officer"])
         ).status_code == 404
     assert (
-        await client.delete(path + "?expected_revision=2", headers=tokens["officer"])
+        await client.delete(
+            path + "?expected_revision=2", headers=tokens["guild_master"]
+        )
     ).status_code == 404
     assert (
         await client.get("/api/handbook?q=Updated", headers=tokens["member"])
@@ -311,9 +318,10 @@ async def test_concurrent_section_deletes(handbook):
     results = await asyncio.gather(
         *[
             client.delete(
-                "/api/handbook/test-rules?expected_revision=1", headers=tokens[role]
+                "/api/handbook/test-rules?expected_revision=1",
+                headers=tokens["guild_master"],
             )
-            for role in ("officer", "guild_master")
+            for _ in range(2)
         ]
     )
     assert sorted(result.status_code for result in results) == [204, 404]
@@ -354,7 +362,7 @@ async def test_failed_delete_rolls_back_cascaded_history(handbook, monkeypatch):
 
     monkeypatch.setattr(psycopg.AsyncConnection, "execute", fail_after_delete)
     response = await client.delete(
-        "/api/handbook/test-rules?expected_revision=1", headers=tokens["officer"]
+        "/api/handbook/test-rules?expected_revision=1", headers=tokens["guild_master"]
     )
     assert response.status_code == 503
     assert "synthetic" not in response.text

@@ -17,14 +17,23 @@ from bluddit_api.utils.permissions import Permission, Role, RolePolicy
 
 def test_policy_is_immutable_and_requires_active_membership():
     assert RolePolicy.permissions(Role.MEMBER) < RolePolicy.permissions(Role.OFFICER)
-    assert RolePolicy.permissions(Role.OFFICER) == RolePolicy.permissions(
+    assert RolePolicy.permissions(Role.OFFICER) < RolePolicy.permissions(
         Role.GUILD_MASTER
     )
+    for role in Role:
+        assert RolePolicy.allows(
+            AccountState(id=1, role_name=role, membership_state="active"),
+            Permission.HANDBOOK_DELETE,
+        ) == (role == Role.GUILD_MASTER)
     assert not RolePolicy.permissions("unknown")
     for state in ("pending", "rejected", "inactive"):
         assert not RolePolicy.allows(
             AccountState(id=1, role_name="guild_master", membership_state=state),
             Permission.ACCOUNTS_MANAGE,
+        )
+        assert not RolePolicy.allows(
+            AccountState(id=1, role_name="guild_master", membership_state=state),
+            Permission.HANDBOOK_DELETE,
         )
     with pytest.raises(TypeError):
         RolePolicy.mappings[Role.MEMBER] = frozenset(Permission)

@@ -210,7 +210,12 @@ async def test_role_permissions_protected_gm_and_live_authority(members):
     policy = await client.get("/api/permissions", headers=tokens["officer_a"])
     assert policy.status_code == 200
     assert "accounts.manage" in policy.json()["roles"]["guild_master"]
-    assert policy.json()["roles"]["officer"] == policy.json()["roles"]["guild_master"]
+    assert "handbook.delete" in policy.json()["permissions"]
+    assert set(policy.json()["roles"]["guild_master"]) == (
+        set(policy.json()["roles"]["officer"]) | {"handbook.delete"}
+    )
+    assert "handbook.delete" not in policy.json()["roles"]["officer"]
+    assert "handbook.delete" not in policy.json()["roles"]["member"]
     assert (
         await client.put("/api/permissions", headers=tokens["officer_a"], json={})
     ).status_code == 405

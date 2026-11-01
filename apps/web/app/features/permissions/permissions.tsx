@@ -65,8 +65,8 @@ export function Permissions() {
             </TableBody>
           </Table>
           <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
-            Officers and the Guild Master share the same permission set. Only the current GM can
-            promote or demote roles and pass leadership. Resource ownership and assignments further
+            The Guild Master has all Officer permissions and can also delete handbook sections.
+            Only the current GM can promote or demote roles and pass leadership. Resource ownership and assignments further
             restrict actions.
           </p>
         </>

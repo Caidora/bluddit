@@ -54,6 +54,7 @@ function Section({ slug }: { slug: string }) {
   const [history, setHistory] = useState(false);
   const [saved, setSaved] = useState(false);
   const editor = actor.permissions.includes('handbook.edit');
+  const deleter = actor.permissions.includes('handbook.delete');
   if (query.isPending) return <Loading label="Loading section…" />;
   if (query.isError && !query.data)
     return (
@@ -124,17 +125,19 @@ function Section({ slug }: { slug: string }) {
             <Button variant="outline" onClick={() => setHistory(!history)}>
               {history ? 'Hide revisions' : 'View revisions'}
             </Button>
-            <Button
-              variant="destructive"
-              disabled={draft !== null || mutation.isPending || deletion.isPending || mustReload}
-              onClick={() => {
-                deletion.reset();
-                setDeleteTarget(section);
-              }}
-            >
-              Delete section
-            </Button>
-            {mustReload && (
+            {deleter && (
+              <Button
+                variant="destructive"
+                disabled={draft !== null || mutation.isPending || deletion.isPending || mustReload}
+                onClick={() => {
+                  deletion.reset();
+                  setDeleteTarget(section);
+                }}
+              >
+                Delete section
+              </Button>
+            )}
+            {deleter && mustReload && (
               <Button
                 variant="outline"
                 disabled={query.isFetching || deleteTarget !== null}
@@ -169,7 +172,7 @@ function Section({ slug }: { slug: string }) {
           )}
           {history && <History slug={slug} />}
           <AlertDialog
-            open={deleteTarget !== null}
+            open={deleter && deleteTarget !== null}
             onOpenChange={(open) => {
               if (!open && !deletion.isPending) setDeleteTarget(null);
             }}

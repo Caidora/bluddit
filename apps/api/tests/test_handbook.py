@@ -52,7 +52,6 @@ def test_read_and_editor_permission_boundaries(handbook_client, role, state):
         ("POST", "/api/handbook", {**CONTENT, "slug": "test"}),
         ("PUT", "/api/handbook/test", {**CONTENT, "expected_revision": 1}),
         ("GET", "/api/handbook/test/revisions", None),
-        ("DELETE", "/api/handbook/test?expected_revision=1", None),
     ):
         assert client.request(method, path, json=body).status_code == 403
     repository.create.assert_not_awaited()
@@ -119,10 +118,9 @@ def test_csrf_and_query_validation(handbook_client):
     repository.revisions.assert_not_awaited()
 
 
-@pytest.mark.parametrize("role", ["officer", "guild_master"])
-def test_delete_response_contract(handbook_client, role):
+def test_delete_response_contract(handbook_client):
     client, repository, actor = handbook_client
-    actor.role_name = role
+    actor.role_name = "guild_master"
     repository.delete.return_value = True
     response = client.delete("/api/handbook/test?expected_revision=2")
     assert response.status_code == 204
@@ -148,17 +146,31 @@ def test_delete_response_contract(handbook_client, role):
     ],
 )
 def test_invalid_delete_rejected_before_persistence(handbook_client, path):
-    client, repository, _ = handbook_client
+    client, repository, actor = handbook_client
+    actor.role_name = "guild_master"
     assert client.delete("/api/handbook/" + path).status_code == 422
     repository.delete.assert_not_awaited()
 
 
 def test_delete_csrf_rejected_before_persistence(handbook_client):
-    client, repository, _ = handbook_client
+    client, repository, actor = handbook_client
+    actor.role_name = "guild_master"
     path = "/api/handbook/test?expected_revision=1"
     assert (
         client.delete(path, headers={"Origin": "https://evil.invalid"}).status_code
         == 403
     )
     assert client.delete(path, headers={"X-CSRF-Protection": ""}).status_code == 403
+    repository.delete.assert_not_awaited()
+
+
+@pytest.mark.parametrize("role", ["member", "officer", "guild_master"])
+@pytest.mark.parametrize("state", ["active", "pending", "inactive", "rejected"])
+def test_delete_permission_boundaries(handbook_client, role, state):
+    client, repository, actor = handbook_client
+    actor.role_name = role
+    actor.membership_state = state
+    if role == "guild_master" and state == "active":
+        return  # Success is covered by the response-contract and database tests.
+    assert client.delete("/api/handbook/test?expected_revision=1").status_code == 403
     repository.delete.assert_not_awaited()
