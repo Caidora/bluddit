@@ -601,3 +601,26 @@ own stable slugs. Include those terms in relevant section titles or bodies to
 make guidance discoverable. The links show the handbook's empty/no-match state
 until officers publish content. Section creation and policy approval remain guild
 responsibilities; the application supplies no policy wording.
+
+## Bluds migration and reference updates
+
+Migration `0005_bluds.sql` adds the Bluds tables and their read view without
+changing existing account or handbook data. Apply it through the normal Actions
+deployment. There is no member data import or external game-data dependency.
+The prior image does not understand migration 0005: use the documented process-only
+rollback checks, preserve the new tables, and roll forward to a compatible image.
+Do not remove the migration ledger entry or drop character data to roll back.
+
+Game catalogs are reviewed declarations in `bluddit_api/data/bluds.py`. Changes
+go through a PR: retain stable IDs, update review/version metadata and source
+links, validate skill/spec relationships, and rerun feature tests. Renaming a
+display label must not change its ID. New dungeons start as not completed for all
+characters and increase the completion denominator; do not remove or repurpose
+IDs referenced by saved progress. Never replace Forever facts with unmarked
+Retail or Classic-only values. No scheduled sync or provider credentials exist.
+
+After deployment, use synthetic accounts to create two Bluds, update a profession
+and farming zone, cycle the three dungeon states, verify a cross-owner denial and
+an officer correction, and archive/restore without losing progress. Check mobile
+layout and record the deployed version and results in issue #18. Archive the test
+characters afterward.

@@ -26,7 +26,9 @@ import type { CurrentAccount } from '@/features/auth/types';
 function Navigation({ account }: { account: CurrentAccount | null | undefined }) {
   const { setOpenMobile } = useSidebar();
   const items = [
-    ...Object.values(destinations),
+    ...Object.values(destinations).filter(
+      (item) => item.path !== '/bluds' || account?.permissions.includes('bluds.view')
+    ),
     ...(account?.permissions.includes('accounts.manage')
       ? [{ path: '/admin/accounts', label: 'Membership', icon: ShieldCheck }]
       : []),
@@ -90,7 +92,9 @@ export function Shell() {
         <div className="flex min-w-0 items-center gap-2">
           {account && (
             <>
-              <span className="hidden max-w-40 truncate text-sm sm:block">{account.display_name}</span>
+              <span className="hidden max-w-40 truncate text-sm sm:block">
+                {account.display_name}
+              </span>
               <Badge variant="secondary" className="hidden md:inline-flex">
                 {account.role_name.replaceAll('_', ' ')}
               </Badge>

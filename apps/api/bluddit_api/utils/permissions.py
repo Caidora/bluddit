@@ -16,6 +16,8 @@ class Role(StrEnum):
 
 class Permission(StrEnum):
     GUILD_READ = "guild.read"
+    BLUDS_VIEW = "bluds.view"
+    BLUDS_EDIT_OWN = "bluds.edit_own"
     PROFILE_EDIT_OWN = "profile.edit_own"
     CHARACTERS_EDIT_OWN = "characters.edit_own"
     WISHLIST_EDIT_OWN = "wishlist.edit_own"
@@ -29,6 +31,8 @@ class Permission(StrEnum):
 _MEMBER = frozenset(
     {
         Permission.GUILD_READ,
+        Permission.BLUDS_VIEW,
+        Permission.BLUDS_EDIT_OWN,
         Permission.PROFILE_EDIT_OWN,
         Permission.CHARACTERS_EDIT_OWN,
         Permission.WISHLIST_EDIT_OWN,
