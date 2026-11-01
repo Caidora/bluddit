@@ -1,5 +1,9 @@
 # Development and production operations
 
+For Mac prerequisites, first startup, a disposable test database, and Windows/WSL
+differences, start with the [local development guide](../README.md#local-development-on-macos).
+This runbook covers configuration, architecture details, and operational recovery.
+
 ## Selected versions
 
 Node 24 LTS (see `.nvmrc`), React Router 8.5.1 framework SPA mode with CSR (`ssr: false`),
@@ -91,6 +95,17 @@ check sequence. Documentation-only changes still use documentation checks.
 The local volume is `bluddit-local_postgres_data`. Never use `down --volumes` on
 data you want to keep. Changing `POSTGRES_PASSWORD` after initialization does not
 rotate the existing PostgreSQL account password.
+
+## Production foundation verification
+
+The maintainer confirmed the initial production foundation on 31 October 2026.
+Successful deployment evidence includes Actions runs
+[41171440169](https://github.com/Caidora/bluddit/actions/runs/41171440169) and
+[41172292916](https://github.com/Caidora/bluddit/actions/runs/41172292916).
+This is historical foundation evidence, not acceptance of later member features.
+Record each subsequent deployed version and its feature verification in the
+corresponding issue or PR. Local smoke checks validate HTTP responses and assets;
+use browser and production workflow checks for member-facing behavior.
 
 ## GitHub configuration
 
@@ -220,8 +235,9 @@ then restores the dump into a uniquely named disposable database with
 backup complete after success. Partial failures are not retained as valid dumps.
 Backups stay under `DEPLOY_PATH/backups`; they are not uploaded to public Actions
 artifacts. Restrict access and copy them to approved off-host storage. Automated
-retention and full disaster recovery are covered by ticket 18; a backup on this
-server alone cannot protect against loss of the server.
+retention, scheduled backups, and full off-host disaster recovery remain planned;
+a backup on this server alone cannot protect against loss of the server. See the
+[recovery scope](../website-feature-plan.md#database-recovery).
 
 To diagnose privately with existing SSH access, resolve `DEPLOY_PATH/current` and
 run Docker Compose there with `--env-file release.env -f compose.production.yaml`.
@@ -271,7 +287,7 @@ affected accounts, rechecks the current active GM, and performs both role update
 transaction. Each method commits before returning success. Handlers do not execute
 SQL or manage connections. Existing
 auth/account-recovery repositories retain their transaction boundaries and static
-helpers; this ticket does not refactor those unrelated operations.
+helpers; refactoring those operations is separate maintenance work.
 Keep each query in one triple-quoted string and bind values using named
 placeholders such as `%(account_id)s` with a separate mapping such as
 `{"account_id": account_id}`. Do not use positional `%s` placeholders or parameter
@@ -288,8 +304,8 @@ ID columns use the singular table/entity name plus `_id`, for example
 bare `id`. Foreign-key IDs use the referenced entity's prefix, so
 `sessions.account_id` references `accounts.account_id`. Keep natural/composite
 keys where appropriate; this rule does not require adding surrogate IDs.
-Existing bare `id` columns remain unchanged until
-[issue #36](https://github.com/Caidora/bluddit/issues/36) (historical ticket 21) is implemented.
+Existing bare `id` columns remain unchanged pending separately scoped schema
+maintenance; do not rename them as an unrelated feature change.
 
 Each account has one required role (default `member`).
 The seeded roles are Guild Master (`guild_master`), Officer (`officer`), and Member
@@ -298,10 +314,10 @@ direct account grants. `utils/permissions.py` defines the fixed Python policy;
 there is no startup synchronization or database override. Migration 0003 drops
 `role_permissions` and `permissions`, retaining the referenced `roles` table.
 Organizer and quartermaster assignments and attribute checks arrive with the
-feature tickets that introduce their resources. See [the permission matrix](permissions.md).
+features that introduce their resources. See [the permission matrix](permissions.md).
 
 Username formatting, membership-state validation, and token-hash-length validation
-belong to the application endpoints in tickets 03–04. The migration retains
+belong to the authentication and membership application endpoints. The migration retains
 case-insensitive username uniqueness and foreign keys.
 
 Migrations live inside the API package as `NNNN_description.sql`, starting at
@@ -335,7 +351,7 @@ Container verification also runs migrations twice before checking readiness,
 including the exact published images. There are no per-column or schema snapshot
 tests. Production verification and migration reruns must happen through Actions.
 
-## Authentication and account recovery (ticket 03)
+## Authentication and account recovery
 
 The API uses opaque bearer access tokens lasting 600 seconds and rotating refresh
 cookies lasting 30 days from the latest login/refresh. Only SHA-256 token hashes
@@ -358,7 +374,7 @@ log in, refresh, or use existing access tokens. Request-time account and parent
 session checks enforce immediate logout, deactivation, and password-reset effects.
 New logins are independent sessions; resetting a password invalidates every device.
 Registration and membership administration are available through the API described
-below. Account screens arrive in ticket 05. Bootstrap does not write permission mappings.
+below and through the account screens. Bootstrap does not write permission mappings.
 
 Set `AUTH_ALLOWED_ORIGINS` to comma-separated exact origins (scheme, hostname,
 and optional port, no trailing slash). All unsafe `/api/` requests require an
@@ -444,8 +460,8 @@ and fails transactionally with a clear error if multiple GM accounts exist. Reso
 duplicates manually before retrying; the migration never chooses an account.
 Historical migrations remain unchanged.
 
-Image rollback does not recreate dropped tables. Ticket 03 runtime authentication
-does not query them, but its older migration checker rejects a ledger containing
+Image rollback does not recreate dropped tables. Older authentication images
+do not query them, but their migration checker rejects a ledger containing
 0003, so readiness will remain unavailable on that image. Prefer a forward fix;
 any rollback image must understand the migration ledger and avoid the removed
 tables. Never delete ledger entries or reset member data to force compatibility.
@@ -481,14 +497,14 @@ and role unchanged and revokes every refresh session atomically with the update.
 Commands report sanitized failures without passwords or database diagnostics.
 
 Migration `0002_refresh_sessions.sql` adds refresh sessions and links access-token
-records to them. It assumes the existing sessions table is empty, as agreed for
-this ticket; it does not rewrite or revoke existing sessions. If that assumption
-is false, the NOT NULL migration fails transactionally for review rather than
+records to them. The original authentication rollout assumed an empty sessions
+table; the migration does not rewrite or revoke existing sessions. If that
+assumption is false, the NOT NULL migration fails transactionally for review rather than
 silently modifying records. Existing migration 0001 is unchanged. Rollback to the
 previous health-only API image is compatible with the additive schema; rollback
 does not undo schema or delete records.
 
-### Client contract for ticket 05
+### Browser session contract
 
 Keep access tokens only in JavaScript memory and send them as bearer headers.
 On reload or access expiry, refresh using the HttpOnly cookie. Share a single
@@ -503,7 +519,7 @@ shared lock with the current cookie. If that also fails, require login. Logout
 must clear the tab's memory and notify other tabs even when its server request
 fails, while making the server failure visible to the user.
 
-## Account UI and shell (ticket 05)
+## Account UI and shell
 
 The entry route `/` sends visitors to `/login` or authenticated members to `/home`.
 Registration at `/register` creates a pending account and opens `/pending-approval`;
