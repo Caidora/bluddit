@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useLocation, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from '@/components/session';
@@ -443,33 +444,44 @@ export function BludDetails() {
         )}
       </div>
       <section className="min-w-0 rounded-xl border bg-card p-5" aria-label="Dungeon progress">
-        <h2 className="text-lg font-semibold">Dungeon progress</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Both completed states count toward your total. Choose “Completed — looking to rerun” to
-          show the guild you’re keen to go again.
-        </p>
-        {brackets.map((bracket) => (
-          <div key={bracket} className="mt-6 min-w-0">
-            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-              Starting around level {bracket}
-            </h3>
-            <ul className="min-w-0">
-              {refs.dungeons
-                .filter((item) => Math.floor(item.suggested_level_min / 10) * 10 === bracket)
-                .map((dungeon) => (
-                  <DungeonRow
-                    key={dungeon.id}
-                    dungeon={dungeon}
-                    blud={blud}
-                    references={refs}
-                    editable={editable}
-                    pending={mutation.isPending}
-                    save={save}
-                  />
-                ))}
-            </ul>
-          </div>
-        ))}
+        <details key={blud.blud_id} className="group">
+          <summary className="flex min-w-0 cursor-pointer list-none flex-wrap items-center gap-3 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+            <h2 className="text-lg font-semibold">Dungeon progress</h2>
+            <Badge variant="secondary">
+              {blud.completed_dungeons}/{blud.total_dungeons} completed
+            </Badge>
+            <ChevronDown
+              aria-hidden="true"
+              className="ml-auto size-5 shrink-0 group-open:rotate-180"
+            />
+          </summary>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Both completed states count toward your total. Choose “Completed — looking to rerun” to
+            show the guild you’re keen to go again.
+          </p>
+          {brackets.map((bracket) => (
+            <div key={bracket} className="mt-6 min-w-0">
+              <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+                Starting around level {bracket}
+              </h3>
+              <ul className="min-w-0">
+                {refs.dungeons
+                  .filter((item) => Math.floor(item.suggested_level_min / 10) * 10 === bracket)
+                  .map((dungeon) => (
+                    <DungeonRow
+                      key={dungeon.id}
+                      dungeon={dungeon}
+                      blud={blud}
+                      references={refs}
+                      editable={editable}
+                      pending={mutation.isPending}
+                      save={save}
+                    />
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </details>
       </section>
       <details className="mt-5 break-words text-sm text-muted-foreground">
         <summary className="cursor-pointer">Game references · reviewed {refs.reviewed_on}</summary>
