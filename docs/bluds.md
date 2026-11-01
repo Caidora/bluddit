@@ -32,6 +32,10 @@ without saved progress is not completed. Totals use the current 35-entry catalog
 including its named wings. Suggested levels are guidance, not entry restrictions.
 Available dungeon/quest guides are external links; no quests are copied or tracked.
 
+On each visit to a Blud detail page, Dungeon progress starts collapsed with a
+completed/total count. Expand it to view all dungeons and any permitted editing
+controls. Collapsing and reopening preserves unsaved selections during that visit.
+
 The directory searches character and member display names. Filters combine Mine,
 class, profession, farming zone, archived state, and one dungeon's exact status.
 A selected dungeon defaults to Not completed; status without a dungeon is ignored.

@@ -63,6 +63,7 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await page.getByLabel('Character creation date').fill('2026-10-28');
     await page.getByRole('button', { name: 'Create Blud' }).click();
     await expect(page.getByRole('heading', { name: 'Browserfrost', exact: true })).toBeVisible();
+    await page.getByRole('region', { name: 'Dungeon progress' }).locator('summary').click();
     await page.getByLabel('Ragefire Chasm status', { exact: true }).selectOption('completed_rerun');
     await page.getByRole('button', { name: 'Save Ragefire Chasm status', exact: true }).click();
     await expect(page.getByText('1/35 dungeons completed', { exact: true })).toBeVisible();

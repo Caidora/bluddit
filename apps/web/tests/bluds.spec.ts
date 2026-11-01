@@ -209,6 +209,7 @@ test('owner updates professions, farming, dungeons; archive and restore on a pho
   await expect(page.getByRole('region', { name: 'Professions', exact: true })).toContainText(
     'Alchemy · Level not set'
   );
+  await page.getByRole('region', { name: 'Dungeon progress' }).locator('summary').click();
   await page.getByLabel('Ragefire Chasm status', { exact: true }).selectOption('completed_rerun');
   await page.getByRole('button', { name: 'Save Ragefire Chasm status', exact: true }).click();
   await expect(page.getByText('1/2 dungeons completed', { exact: true })).toBeVisible();
@@ -229,6 +230,80 @@ test('owner updates professions, farming, dungeons; archive and restore on a pho
   await page.setViewportSize({ width: 320, height: 720 });
   await noOverflow(page);
 });
+
+test('dungeon disclosure preserves drafts and stays open after saving', async ({ page, context }) => {
+  await mockApi(context, member);
+  const api = await bludsApi(context);
+  await page.goto('/bluds/10');
+  const tracker = page.getByRole('region', { name: 'Dungeon progress' });
+  const summary = tracker.locator('summary');
+  const disclosure = tracker.locator('details');
+  const status = page.getByLabel('Ragefire Chasm status', { exact: true });
+  await expect(summary).toContainText('0/2 completed');
+  await expect(status).toBeHidden();
+  await summary.focus();
+  await expect(summary).toBeFocused();
+  await expect(summary).toHaveCSS('outline-style', 'solid');
+  await expect(summary).toHaveCSS('outline-width', '2px');
+  await summary.press('Enter');
+  await expect(status).toBeVisible();
+  await status.selectOption('completed');
+  await summary.click();
+  await expect(status).toBeHidden();
+  await summary.press('Space');
+  await expect(status).toHaveValue('completed');
+  expect(api.writes).toBe(0);
+  await page.getByRole('button', { name: 'Save Ragefire Chasm status', exact: true }).click();
+  await expect(summary).toContainText('1/2 completed');
+  await expect(disclosure).toHaveAttribute('open', '');
+  await status.selectOption('completed_rerun');
+  await page.getByRole('button', { name: 'Save Ragefire Chasm status', exact: true }).click();
+  await expect(page.getByText('1 looking to rerun', { exact: true })).toBeVisible();
+  await expect(summary).toContainText('1/2 completed');
+  await summary.click();
+  await expect(summary).toContainText('1/2 completed');
+});
+
+test('dungeon disclosure resets on reload and visits to either character', async ({ page, context }) => {
+  await mockApi(context, member);
+  await bludsApi(context, [original, { ...original, blud_id: 11, name: 'Riveralt' }]);
+  await page.goto('/bluds/10');
+  const tracker = page.getByRole('region', { name: 'Dungeon progress' });
+  const summary = tracker.locator('summary');
+  const disclosure = tracker.locator('details');
+  await summary.click();
+  await expect(disclosure).toHaveAttribute('open', '');
+  await page.reload();
+  await expect(summary).toBeVisible();
+  await expect(disclosure).not.toHaveAttribute('open');
+  await summary.click();
+  await page.getByRole('link', { name: '← Bluds' }).click();
+  await page.getByRole('link', { name: 'Riveralt', exact: true }).click();
+  await expect(summary).toBeVisible();
+  await expect(disclosure).not.toHaveAttribute('open');
+  await summary.click();
+  await page.goBack();
+  await page.getByRole('link', { name: 'Riverfrost', exact: true }).click();
+  await expect(summary).toBeVisible();
+  await expect(disclosure).not.toHaveAttribute('open');
+});
+
+for (const width of [1280, 375, 320]) {
+  test(`dungeon disclosure fits at ${width}px`, async ({ page, context }, info) => {
+    await page.setViewportSize({ width, height: 812 });
+    await mockApi(context, member);
+    await bludsApi(context);
+    await page.goto('/bluds/10');
+    const summary = page.getByRole('region', { name: 'Dungeon progress' }).locator('summary');
+    await expect(summary).toContainText('0/2 completed');
+    await noOverflow(page);
+    await page.screenshot({ path: info.outputPath(`dungeons-${width}-collapsed.png`), fullPage: true });
+    await summary.click();
+    await expect(page.getByLabel('Ragefire Chasm status', { exact: true })).toBeVisible();
+    await noOverflow(page);
+    await page.screenshot({ path: info.outputPath(`dungeons-${width}-expanded.png`), fullPage: true });
+  });
+}
 
 test('combined filters and pagination live in URL; back link retains filters', async ({
   page,
@@ -270,6 +345,8 @@ test('another member is read only; officer correction is explicit and permission
   await page.goto('/bluds/10');
   await expect(page.getByRole('heading', { name: 'Riverfrost', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit details' })).toHaveCount(0);
+  await page.getByRole('region', { name: 'Dungeon progress' }).locator('summary').click();
+  await expect(page.getByRole('heading', { name: 'Ragefire Chasm' })).toBeVisible();
   await expect(page.getByLabel('Ragefire Chasm status')).toHaveCount(0);
   auth.account = { ...officer(), id: 2 };
   await page.reload();
