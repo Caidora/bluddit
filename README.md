@@ -44,9 +44,11 @@ Complete migrated release-1 ticket sections in their original numerical order, o
 - GitHub Actions for CI and deployment.
 
 The application includes health/readiness checks, authentication/membership APIs,
-an account-recovery CLI, ticket 05 account screens, and an officer-authored guild
-handbook with immutable revisions. The frontend uses shadcn/ui
-and TanStack Query with shared HTTP/session handling and feature-owned typed API
+an account-recovery CLI, ticket 05 account screens, an officer-authored guild
+handbook with immutable revisions, and the Bluds character directory with owner
+updates, officer corrections, professions, farming zones, and dungeon progress.
+See [Bluds behavior and scope](docs/bluds.md) for the focused issue #18 delivery.
+The frontend uses shadcn/ui and TanStack Query with shared HTTP/session handling and feature-owned typed API
 modules. See the [web README](apps/web/README.md) for frontend architecture
 conventions. The [permission matrix](docs/permissions.md) documents current gates
 and resource checks required by later features.

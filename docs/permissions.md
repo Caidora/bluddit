@@ -17,9 +17,13 @@ state on every request; pending, rejected, and inactive accounts have no access.
 | Read policy | `policy.read` | Officers and GM; no mutation API |
 | Read/search handbook | `guild.read` | Active member; current published content |
 | Create/edit handbook; read revisions | `handbook.edit` | Officer/GM; server-attributed author; stable slug; expected revision required for edits |
+| Read Bluds and game references | `bluds.view` | Active member; includes archived records |
+| Create Blud | `bluds.edit_own` | Owner is always the caller |
+| Edit/archive/restore own Blud | `bluds.view` + `bluds.edit_own` | Persisted `account_id` matches caller; ownership cannot change |
+| Correct/edit/archive/restore another member’s Blud | `bluds.view` + `shared_records.correct` | Explicit officer correction controls; last modifier attributed by the server |
 | Pass GM | `accounts.manage` | Current active GM → different active account; atomic succession |
 
-Members have `guild.read`, `profile.edit_own`, `characters.edit_own`,
+Members have `guild.read`, `bluds.view`, `bluds.edit_own`, `profile.edit_own`, `characters.edit_own`,
 `wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
 and add `accounts.manage`, `policy.read`, `handbook.edit`, and
 `shared_records.correct`. The GM has the same permission set as Officers. Role changes additionally require the actor
@@ -34,6 +38,12 @@ call revokes all account refresh sessions. Failed revocation returns 503 without
 rolling back membership. Live membership checks still deny access while inactive
 or rejected, but old sessions may work after reactivation if revocation failed.
 Concurrent reactivation/login can race with revocation; this tradeoff is accepted.
+
+Bluds updates deliberately use last-write-wins behavior, with no revisions, row
+locking, or conflict detection. Ordinary membership/permission checks retain the
+existing policy’s race tradeoff. Blud ownership is immutable and is also checked
+in the update statement. `characters.edit_own` remains reserved for the broader
+character roadmap; it does not grant Bluds access. See [Bluds](bluds.md).
 
 ## Contract for later feature tickets
 

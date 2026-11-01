@@ -48,6 +48,29 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await page.goto('/handbook/browser-policy');
     await expect(page.getByRole('article')).toHaveText('Updated synthetic policy');
     await expect(page.getByRole('button', { name: 'Edit section' })).toHaveCount(0);
+    // Bluds use the real reference endpoint and persist through a page reload.
+    await page.goto('/bluds');
+    await page.getByRole('button', { name: 'Add Blud' }).click();
+    await page.getByLabel('Character name', { exact: true }).fill('Browserfrost');
+    await page.getByLabel('Class', { exact: true }).selectOption('mage');
+    await page.getByLabel('Character creation date').fill('2026-10-28');
+    await page.getByRole('button', { name: 'Create Blud' }).click();
+    await expect(page.getByRole('heading', { name: 'Browserfrost', exact: true })).toBeVisible();
+    await page.getByLabel('Ragefire Chasm status', { exact: true }).selectOption('completed_rerun');
+    await page.getByRole('button', { name: 'Save Ragefire Chasm status', exact: true }).click();
+    await expect(page.getByText('1/35 dungeons completed', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Edit professions' }).click();
+    await page.getByRole('checkbox', { name: 'Mining', exact: true }).check();
+    await page.getByLabel('Mining level', { exact: true }).fill('75');
+    await page.getByRole('button', { name: 'Save professions' }).click();
+    await expect(page.getByRole('region', { name: 'Professions', exact: true })).toContainText(
+      'Mining · 75'
+    );
+    await page.reload();
+    await expect(page.getByText('1/35 dungeons completed', { exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Professions', exact: true })).toContainText(
+      'Mining · 75'
+    );
     await page.getByRole('link', { name: 'Log out', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.reload();

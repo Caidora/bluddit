@@ -9,7 +9,7 @@ export const member: CurrentAccount = {
   membership_state: 'active',
   role_name: 'member',
   timezone: null,
-  permissions: ['guild.read'],
+  permissions: ['guild.read', 'bluds.view', 'bluds.edit_own'],
 };
 export const applicant: Account = {
   ...member,
@@ -22,7 +22,15 @@ export function officer(role: Role = 'officer'): CurrentAccount {
   return {
     ...member,
     role_name: role,
-    permissions: ['guild.read', 'accounts.manage', 'policy.read', 'handbook.edit'],
+    permissions: [
+      'guild.read',
+      'bluds.view',
+      'bluds.edit_own',
+      'accounts.manage',
+      'policy.read',
+      'handbook.edit',
+      'shared_records.correct',
+    ],
   };
 }
 export async function mockApi(context: BrowserContext, initial: CurrentAccount | null = null) {

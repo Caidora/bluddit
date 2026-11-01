@@ -2,11 +2,11 @@ import { Home, Users, Crosshair, CalendarDays, Hammer, BookOpen } from 'lucide-r
 
 export const destinations = {
   home: { path: '/home', label: 'Home', icon: Home, description: 'Your guild, all in one place.' },
-  roster: {
-    path: '/roster',
-    label: 'Roster & Squads',
+  bluds: {
+    path: '/bluds',
+    label: 'Bluds',
     icon: Users,
-    description: 'Find your people and build a balanced group.',
+    description: 'Your guild’s characters, professions, and dungeon progress.',
   },
   gear: {
     path: '/gear',
