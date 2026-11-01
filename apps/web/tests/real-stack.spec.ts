@@ -48,6 +48,13 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await page.goto('/handbook/browser-policy');
     await expect(page.getByRole('article')).toHaveText('Updated synthetic policy');
     await expect(page.getByRole('button', { name: 'Edit section' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Delete section' })).toHaveCount(0);
+    await admin.getByRole('button', { name: 'Delete section' }).click();
+    await admin.getByRole('button', { name: 'Permanently delete' }).click();
+    await expect(admin).toHaveURL(/\/handbook$/);
+    await expect(admin.getByRole('heading', { name: 'No handbook sections yet' })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('alert')).toContainText('Handbook section not found');
     // Bluds use the real reference endpoint and persist through a page reload.
     await page.goto('/bluds');
     await page.getByRole('button', { name: 'Add Blud' }).click();

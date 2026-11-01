@@ -16,7 +16,7 @@ state on every request; pending, rejected, and inactive accounts have no access.
 | Promote to Officer / demote to Member | `accounts.manage` | GM only; explicit source role; no self-role changes or changes to GM; retain an active administrator |
 | Read policy | `policy.read` | Officers and GM; no mutation API |
 | Read/search handbook | `guild.read` | Active member; current published content |
-| Create/edit handbook; read revisions | `handbook.edit` | Officer/GM; server-attributed author; stable slug; expected revision required for edits |
+| Create/edit/delete handbook; read revisions | `handbook.edit` | Officer/GM; server-attributed author; stable slug; expected revision required for edits and deletion; deletion removes all revisions |
 | Read Bluds and game references | `bluds.view` | Active member; includes archived records |
 | Create Blud | `bluds.edit_own` | Owner is always the caller |
 | Edit/archive/restore own Blud | `bluds.view` + `bluds.edit_own` | Persisted `account_id` matches caller; ownership cannot change |

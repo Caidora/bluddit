@@ -588,7 +588,9 @@ delete history as part of an application rollback.
 Officers and the GM use **Guild Handbook → Add section** to publish a title and
 Markdown body with a permanent URL slug. A save publishes immediately. Edits
 record the authenticated author's account ID and a timestamp in a new immutable
-revision. The UI shows the author's current display name and account ID; changing
+revision while the section exists. Officers and the GM can permanently delete a
+whole section, including every revision, after confirming **Delete section**.
+The UI shows the author's current display name and account ID; changing
 a display name does not change the author ID. Members can read and search current
 sections; officers can inspect paginated revision snapshots. Bodies are stored as
 Markdown source and rendered in the browser on section pages, index excerpts,
@@ -608,6 +610,7 @@ The API contracts (also available at `/api/docs`) are:
 | `POST /api/handbook` | Officer/GM (`handbook.edit`) | `{slug, title, body}`; returns 201 with revision 1, or 409 for a duplicate slug |
 | `GET /api/handbook/{slug}` | Active member | Current section, or 404 |
 | `PUT /api/handbook/{slug}` | Officer/GM (`handbook.edit`) | `{title, body, expected_revision}`; returns the next revision, or 409 for a stale edit |
+| `DELETE /api/handbook/{slug}?expected_revision=N` | Officer/GM (`handbook.edit`) | Positive revision required; permanently deletes the section and all revisions; empty 204 on success, 404 if missing, 409 if changed |
 | `GET /api/handbook/{slug}/revisions?limit=10&offset=0` | Officer/GM (`handbook.edit`) | `{revisions: [...], limit, offset}`, newest first; limit 1–50, offset ≥ 0; 404 for missing section |
 
 Slugs start with a lowercase letter and contain up to 80 lowercase letters,
@@ -617,6 +620,23 @@ be supplied in edits. All writes require the existing same-origin/CSRF headers
 and an active session. Stale-edit errors keep the draft in the form; copy the
 draft before cancelling, then reopen the editor to reconcile the latest section.
 Concurrent saves of the same revision allow only one write to commit.
+
+Migration `0006_handbook_section_deletion.sql` preserves existing sections and
+history, adds cascading deletion for whole sections, and continues blocking direct
+updates or deletion of revisions belonging to an existing section. Apply it through
+the normal Actions migration/deployment workflow before running the new API.
+Deletion checks and locks the current revision in one transaction. A stale-delete
+conflict requires closing the dialog, reloading and reviewing the section, and
+confirming again. Deleted sections disappear from listings, search, and navigation;
+their content and revision URLs return 404. A deleted slug can be reused for a new
+section starting at revision 1. There is no archive or restore screen.
+
+Application rollback cannot recover deleted content. Recovery requires an existing
+backup and the documented database recovery procedure; backups may still contain
+previously deleted sections. The new schema can remain in place on application
+rollback, but older images' migration/readiness checks reject a ledger newer than
+their bundled migrations. Follow the compatible-image recovery guidance rather
+than editing the migration ledger.
 
 Events and Crafting Directory currently have placeholder screens. Their handbook
 links search for `scheduling`, `loot`, and `material`, so officers can choose their

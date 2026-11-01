@@ -72,6 +72,7 @@ async function handbookApi(context: BrowserContext, sections: HandbookSection[] 
     failReads: false,
     writes: 0,
     historyReads: 0,
+    holdDelete: null as Promise<void> | null,
   };
   await context.route('**/api/handbook**', async (route) => {
     const request = route.request();
@@ -87,12 +88,25 @@ async function handbookApi(context: BrowserContext, sections: HandbookSection[] 
           json: {
             detail:
               state.error === 409
-                ? 'A newer revision was saved. Keep a copy of your draft, then reload the latest section before editing again.'
+                ? method === 'DELETE'
+                  ? 'A newer revision was saved. Reload and review the latest section before deleting again.'
+                  : 'A newer revision was saved. Keep a copy of your draft, then reload the latest section before editing again.'
+                : state.error === 404
+                  ? 'Handbook section not found'
                 : 'Database unavailable',
           },
         });
-      const body = request.postDataJSON();
       const current = state.sections.find((item) => item.slug === slug);
+      if (method === 'DELETE') {
+        if (state.holdDelete) await state.holdDelete;
+        if (!current)
+          return route.fulfill({ status: 404, json: { detail: 'Handbook section not found' } });
+        expect(Number(url.searchParams.get('expected_revision'))).toBe(current.revision);
+        state.sections = state.sections.filter((item) => item.slug !== slug);
+        state.revisions = state.revisions.filter((item) => item.slug !== slug);
+        return route.fulfill({ status: 204 });
+      }
+      const body = request.postDataJSON();
       const section: HandbookSection = {
         slug: slug ?? body.slug,
         title: body.title,
@@ -195,6 +209,7 @@ test('members search, read inert HTML, and have no editor/history controls', asy
   expect(await page.evaluate(() => 'handbookXss' in window)).toBe(false);
   await expect(page.getByRole('button', { name: 'Edit section' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'View revisions' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Delete section' })).toHaveCount(0);
   expect(api.historyReads).toBe(0);
 });
 
@@ -385,4 +400,89 @@ test('read errors retry and missing sections provide a route back', async ({ pag
   await expect(page.getByRole('alert')).toContainText('Handbook section not found');
   await page.getByRole('link', { name: 'Back to handbook' }).click();
   await expect(page.getByRole('heading', { name: 'Guild Handbook', exact: true })).toBeVisible();
+});
+
+for (const width of [320, 1280]) {
+  test(`officer confirms permanent deletion with keyboard at ${width}px`, async ({ page, context }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockApi(context, officer());
+    const api = await handbookApi(context, [original]);
+    await page.goto('/handbook?q=scheduling');
+    await page.getByRole('link', { name: original.title, exact: true }).click();
+    await page.getByRole('button', { name: 'View revisions' }).click();
+    await expect(page.locator('summary')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Edit section' }).click();
+    await expect(page.getByRole('button', { name: 'Delete section' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete section' }).focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText(original.title);
+    await expect(dialog).toContainText('all its revision history');
+    await noOverflow(page);
+    await page.screenshot({ path: test.info().outputPath(`delete-section-${width}.png`) });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    expect(api.writes).toBe(0);
+    await page.getByRole('button', { name: 'Delete section' }).click();
+    let release!: () => void;
+    api.holdDelete = new Promise<void>((resolve) => { release = resolve; });
+    await dialog.getByRole('button', { name: 'Permanently delete' }).click();
+    await expect(dialog.getByRole('button', { name: 'Deleting…' })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeVisible();
+    release();
+    await expect(page).toHaveURL(/\/handbook$/);
+    await expect(page.getByRole('status')).toContainText('Section deleted.');
+    await expect(page.getByRole('heading', { name: 'No handbook sections yet' })).toBeVisible();
+    expect(api.writes).toBe(1);
+    expect(api.revisions).toEqual([]);
+    await page.getByLabel('Search the handbook').fill('scheduling');
+    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'No matching sections' })).toBeVisible();
+    await page.goto('/handbook/scheduling');
+    await expect(page.getByRole('alert')).toContainText('Handbook section not found');
+  });
+}
+
+test('deletion failure is retryable and stale deletion requires reload and fresh confirmation', async ({ page, context }) => {
+  await mockApi(context, officer());
+  const api = await handbookApi(context, [original]);
+  await page.goto('/handbook/scheduling');
+  await page.getByRole('button', { name: 'Delete section' }).click();
+  const dialog = page.getByRole('alertdialog');
+  api.error = 503;
+  await dialog.getByRole('button', { name: 'Permanently delete' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Database unavailable');
+  await expect(dialog.getByRole('button', { name: 'Permanently delete' })).toBeEnabled();
+  api.error = 409;
+  api.sections = [{ ...original, revision: 2, title: 'Updated scheduling' }];
+  await dialog.getByRole('button', { name: 'Permanently delete' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Reload and review');
+  await expect(dialog.getByRole('button', { name: 'Permanently delete' })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('button', { name: 'Delete section' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Reload section' }).click();
+  await expect(page.getByRole('heading', { name: 'Updated scheduling', exact: true })).toBeVisible();
+  api.error = 0;
+  await page.getByRole('button', { name: 'Delete section' }).click();
+  await expect(dialog).toContainText('Updated scheduling');
+  await dialog.getByRole('button', { name: 'Permanently delete' }).click();
+  await expect(page).toHaveURL(/\/handbook$/);
+  expect(api.writes).toBe(3);
+});
+
+test('section already deleted elsewhere offers return to handbook', async ({ page, context }) => {
+  await mockApi(context, officer());
+  const api = await handbookApi(context, [original]);
+  await page.goto('/handbook/scheduling');
+  await page.getByRole('button', { name: 'Delete section' }).click();
+  api.sections = [];
+  await page.getByRole('button', { name: 'Permanently delete' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog.getByRole('alert')).toContainText('Handbook section not found');
+  await dialog.getByRole('button', { name: 'Back to handbook' }).click();
+  await expect(page).toHaveURL(/\/handbook$/);
+  await expect(page.getByRole('heading', { name: 'No handbook sections yet' })).toBeVisible();
 });
