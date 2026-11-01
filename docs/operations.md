@@ -570,12 +570,19 @@ the preceding application image can leave these additive tables in place; do not
 delete history as part of an application rollback.
 
 Officers and the GM use **Guild Handbook → Add section** to publish a title and
-plain-text body with a permanent URL slug. A save publishes immediately. Edits
+Markdown body with a permanent URL slug. A save publishes immediately. Edits
 record the authenticated author's account ID and a timestamp in a new immutable
 revision. The UI shows the author's current display name and account ID; changing
 a display name does not change the author ID. Members can read and search current
-sections; officers can inspect paginated revision snapshots. HTML/Markdown are
-shown as literal text, including in history.
+sections; officers can inspect paginated revision snapshots. Bodies are stored as
+Markdown source and rendered in the browser on section pages, index excerpts,
+and revision history. GitHub Flavored Markdown supports tables, task lists,
+strikethrough, and autolinks alongside headings, lists, links, images, quotes,
+and code. Task checkboxes are read-only. Raw HTML is shown as literal text and
+unsafe URL protocols are blocked. Use blank lines between paragraphs; single
+line endings follow standard Markdown rules. Titles remain plain text.
+Existing revisions are interpreted as Markdown without modifying stored content.
+Search continues to match literal titles and body source, including Markdown syntax.
 
 The API contracts (also available at `/api/docs`) are:
 

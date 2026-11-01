@@ -98,3 +98,86 @@
     @apply tracking-tight;
   }
 }
+
+.handbook-markdown {
+  min-width: 0;
+  max-width: 48rem;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+.handbook-markdown :where(p, ul, ol, blockquote, pre, .handbook-table-scroll, hr) {
+  margin-block: 1rem;
+}
+.handbook-markdown > :first-child {
+  margin-top: 0;
+}
+.handbook-markdown > :last-child {
+  margin-bottom: 0;
+}
+.handbook-markdown :where(h1, h2, h3, h4, h5, h6) {
+  margin-block: 1.5rem 0.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.handbook-markdown h1 { font-size: 1.875rem; }
+.handbook-markdown h2 { font-size: 1.5rem; }
+.handbook-markdown h3 { font-size: 1.25rem; }
+.handbook-markdown h4 { font-size: 1.125rem; }
+.handbook-markdown ul { list-style: disc; padding-left: 1.5rem; }
+.handbook-markdown ol { list-style: decimal; padding-left: 1.5rem; }
+.handbook-markdown li > :where(ul, ol) { margin-block: 0.25rem; }
+.handbook-markdown .task-list-item { list-style: none; }
+.handbook-markdown .task-list-item input { margin-right: 0.5rem; }
+.handbook-markdown blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+}
+.handbook-markdown a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.handbook-markdown code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.125rem 0.25rem;
+  font-size: 0.875em;
+}
+.handbook-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius);
+  background: var(--muted);
+  padding: 1rem;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.handbook-markdown pre code { padding: 0; }
+.handbook-table-scroll { max-width: 100%; overflow-x: auto; }
+.handbook-markdown table {
+  width: max-content;
+  border-collapse: collapse;
+  overflow-wrap: normal;
+  font-size: 0.875em;
+}
+.handbook-markdown :where(th, td) {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+}
+.handbook-markdown th { background: var(--muted); }
+.handbook-markdown img { max-width: 100%; height: auto; }
+.handbook-markdown-compact {
+  max-height: 6rem;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+.handbook-markdown.handbook-markdown-compact :where(h1, h2, h3, h4, h5, h6) {
+  font-size: 1em;
+  margin-block: 0.5rem 0.25rem;
+}
+.handbook-markdown-compact :where(p, ul, ol, blockquote, pre, .handbook-table-scroll, hr) {
+  margin-block: 0.5rem;
+}
+.handbook-markdown-compact > :first-child { margin-top: 0; }

@@ -6,6 +6,7 @@ import { PageTitle, ErrorNotice, Loading } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
 import { editOptions, revisionsOptions, sectionOptions, sectionsOptions } from './queries';
 import { SectionForm } from './section-form';
+import { HandbookMarkdown } from './markdown';
 import type { HandbookSection } from './types';
 
 export function Attribution({ section }: { section: HandbookSection }) {
@@ -77,8 +78,8 @@ function Section({ slug }: { slug: string }) {
         />
       )}
       <Attribution section={section} />
-      <article className="max-w-3xl whitespace-pre-wrap [overflow-wrap:anywhere] leading-relaxed">
-        {section.body}
+      <article className="max-w-3xl">
+        <HandbookMarkdown body={section.body} />
       </article>
       {saved && (
         <p role="status" className="mt-4">
@@ -154,7 +155,7 @@ function History({ slug }: { slug: string }) {
                 Revision {item.revision}: {item.title}
               </summary>
               <Attribution section={item} />
-              <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{item.body}</p>
+              <HandbookMarkdown body={item.body} />
             </details>
           ))}
           <div className="flex flex-wrap gap-3">
