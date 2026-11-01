@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import Depends, Request, HTTPException
 
 from bluddit_api.repositories.bluds import BludsRepository
+from bluddit_api.repositories.oauth import OAuthRepository
 from bluddit_api.repositories.events import EventsRepository
 
 from bluddit_api.models.bluds import BludReferenceData
@@ -76,3 +77,12 @@ async def get_reference_data(request: Request) -> BludReferenceData:
 
 
 ReferencesDep = Annotated[BludReferenceData, Depends(get_reference_data)]
+
+
+async def get_oauth_repository(
+    database: Database = Depends(get_database),
+) -> OAuthRepository:
+    return OAuthRepository(database)
+
+
+OAuthRepositoryDep = Annotated[OAuthRepository, Depends(get_oauth_repository)]

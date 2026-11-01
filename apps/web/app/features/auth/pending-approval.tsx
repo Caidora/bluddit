@@ -12,7 +12,7 @@ export function PendingApproval() {
         Awaiting approval
       </PageTitle>
       <p className="mb-6 text-sm text-muted-foreground">
-        After approval, use the username and password you registered with.
+        After approval, continue with Battle.net to sign in.
       </p>
       <Button asChild className="w-full rounded-full">
         <Link to="/login">Back to login</Link>

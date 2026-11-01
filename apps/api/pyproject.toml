@@ -10,6 +10,7 @@ dependencies = [
     "psycopg-pool==3.3.3",
     "tzdata==2026.6",
     "uvicorn==0.54.0",
+    "cryptography==50.0.2",
 ]
 
 [dependency-groups]

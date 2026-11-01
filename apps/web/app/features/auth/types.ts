@@ -7,11 +7,18 @@ export interface Credentials {
   username: string;
   password: string;
 }
-export interface Registration extends Credentials {
+export interface Registration {
   display_name: string;
 }
 export interface TokenResponse {
   access_token: string;
   token_type: 'Bearer';
   expires_in: number;
+}
+
+export interface AuthorizationResponse {
+  authorization_url: string;
+}
+export interface RegistrationContext {
+  battletag: string;
 }

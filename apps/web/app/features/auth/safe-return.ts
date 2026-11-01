@@ -16,6 +16,11 @@ export function safeReturn(value: string | null) {
   } catch {
     return '/home';
   }
-  if (['/', '/login', '/register', '/logout', '/pending-approval'].includes(path)) return '/home';
+  if (
+    ['/', '/login', '/register', '/logout', '/pending-approval'].includes(path) ||
+    path.startsWith('/auth') ||
+    path.startsWith('/api')
+  )
+    return '/home';
   return value;
 }

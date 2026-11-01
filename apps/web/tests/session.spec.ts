@@ -282,3 +282,27 @@ test('account actions leave unrelated feature and identity caches fresh', async 
   expect(result.affected).toEqual([true, true, true, true]);
   expect(result.unrelated).toEqual([false, false, false, false]);
 });
+
+test('OAuth completion changes identity and clears protected views across tabs', async ({
+  page,
+  context,
+}) => {
+  const state = await mockApi(context, officer());
+  const other = await context.newPage();
+  await other.goto('/admin/accounts/2');
+  await expect(other.getByRole('heading', { name: 'Fern', exact: true })).toBeVisible();
+  state.account = {
+    ...member,
+    id: 42,
+    username: null,
+    battletag: 'NewBlud#1234',
+    display_name: 'New Blud',
+  };
+  await page.goto('/auth/complete');
+  await expect(page.getByRole('heading', { name: 'Welcome, New Blud' })).toBeVisible();
+  await expect(
+    other.getByRole('heading', { name: 'Access restricted', exact: true })
+  ).toBeVisible();
+  await expect(other.getByRole('heading', { name: 'Fern', exact: true })).toHaveCount(0);
+  await expect(other.getByRole('link', { name: 'Membership', exact: true })).toHaveCount(0);
+});

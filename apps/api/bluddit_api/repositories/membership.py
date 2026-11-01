@@ -14,34 +14,13 @@ class MembershipRepository:
     def __init__(self, database: Database):
         self.database = database
 
-    async def register(
-        self, username: str, display_name: str, password_hash: str
-    ) -> Account:
-        async with self.database.transaction() as connection:
-            cursor = await connection.execute(
-                """
-                INSERT INTO accounts (username, display_name, password_hash, membership_state, role_name)
-                VALUES (%(username)s, %(display_name)s, %(password_hash)s, 'pending', 'member')
-                RETURNING id, username, display_name, membership_state, role_name, timezone
-                """,
-                {
-                    "username": username,
-                    "display_name": display_name,
-                    "password_hash": password_hash,
-                },
-            )
-            cursor.row_factory = class_row(Account)
-            account = await cursor.fetchone()
-            assert account is not None  # INSERT ... RETURNING always produces a row.
-            return account
-
     async def list_accounts(
         self, membership_state: str | None, limit: int, offset: int
     ) -> list[Account]:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
-                SELECT id, username, display_name, membership_state, role_name, timezone
+                SELECT id, username, display_name, membership_state, role_name, timezone, battletag
                 FROM accounts
                 WHERE (%(membership_state)s::text IS NULL OR membership_state = %(membership_state)s)
                 ORDER BY id LIMIT %(limit)s OFFSET %(offset)s
@@ -59,7 +38,7 @@ class MembershipRepository:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
-                SELECT id, username, display_name, membership_state, role_name, timezone
+                SELECT id, username, display_name, membership_state, role_name, timezone, battletag
                 FROM accounts WHERE id = %(account_id)s
                 """,
                 {"account_id": account_id},
@@ -73,7 +52,7 @@ class MembershipRepository:
                 """
                 UPDATE accounts SET membership_state = 'active', updated_at = now()
                 WHERE id = %(account_id)s AND membership_state = 'pending'
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )
@@ -87,7 +66,7 @@ class MembershipRepository:
                 """
                 UPDATE accounts SET membership_state = 'rejected', updated_at = now()
                 WHERE id = %(account_id)s AND membership_state = 'pending'
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )
@@ -106,7 +85,7 @@ class MembershipRepository:
                         SELECT count(*) FROM accounts
                         WHERE membership_state = 'active' AND role_name IN ('officer', 'guild_master')
                     ) > 1)
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )
@@ -120,7 +99,7 @@ class MembershipRepository:
                 """
                 UPDATE accounts SET membership_state = 'active', updated_at = now()
                 WHERE id = %(account_id)s AND membership_state IN ('rejected', 'inactive')
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )
@@ -134,7 +113,7 @@ class MembershipRepository:
                 """
                 UPDATE accounts SET role_name = 'officer', updated_at = now()
                 WHERE id = %(account_id)s AND role_name = 'member'
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )
@@ -153,7 +132,7 @@ class MembershipRepository:
                         SELECT count(*) FROM accounts
                         WHERE membership_state = 'active' AND role_name IN ('officer', 'guild_master')
                     ) > 1)
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )
@@ -198,7 +177,7 @@ class MembershipRepository:
                 """
                 UPDATE accounts SET role_name = 'guild_master', updated_at = now()
                 WHERE id = %(account_id)s
-                RETURNING id, username, display_name, membership_state, role_name, timezone
+                RETURNING id, username, display_name, membership_state, role_name, timezone, battletag
                 """,
                 {"account_id": account_id},
             )

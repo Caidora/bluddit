@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import os
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -17,6 +18,12 @@ from bluddit_api.migrate import load_migrations
 from bluddit_api.routes.bluds import router as bluds_router
 from bluddit_api.routes.events import router as events_router
 from bluddit_api.routes.auth import router as auth_router
+from bluddit_api.routes.oauth import router as oauth_router
+from bluddit_api.utils.battlenet import (
+    BattleNetSettings,
+    BattleNetClient,
+    CallbackLogFilter,
+)
 from bluddit_api.routes.handbook import router as handbook_router
 from bluddit_api.routes.health import router as health_router
 from bluddit_api.routes.accounts import router as accounts_router
@@ -29,6 +36,10 @@ def create_app() -> FastAPI:
         raise RuntimeError("APP_ENV must be development, test, or production")
     settings = DatabaseSettings.from_env(required=environment == "production")
     auth_settings = AuthSettings.from_env(environment)
+    battlenet_settings = BattleNetSettings.from_env(environment, auth_settings.origins)
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, CallbackLogFilter) for item in access_logger.filters):
+        access_logger.addFilter(CallbackLogFilter())
     migrations = load_migrations()
     blizzard_settings = BlizzardSettings.from_env()
 
@@ -71,10 +82,16 @@ def create_app() -> FastAPI:
     )
     app.state.migrations = migrations
     app.state.auth_settings = auth_settings
+    app.state.battlenet_client = (
+        BattleNetClient(battlenet_settings) if battlenet_settings else None
+    )
+    app.state.oauth_slots = asyncio.Semaphore(10)
+    app.state.oauth_throttle = LoginThrottle(capacity=1, attempts=1000)
     app.state.login_throttle = LoginThrottle()
     app.state.registration_throttle = LoginThrottle(capacity=1)
     app.state.password_slots = asyncio.Semaphore(2)
     app.include_router(auth_router)
+    app.include_router(oauth_router)
     app.include_router(health_router)
     app.include_router(accounts_router)
     app.include_router(handbook_router)
@@ -106,7 +123,8 @@ def create_app() -> FastAPI:
                 )
         if (
             response is None
-            and request.url.path in {"/api/auth/login", "/api/auth/register"}
+            and request.url.path
+            in {"/api/auth/login", "/api/auth/register", "/api/auth/battlenet/start"}
             and request.method == "POST"
         ):
             if (

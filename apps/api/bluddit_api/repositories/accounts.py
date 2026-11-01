@@ -41,14 +41,16 @@ class AccountRepository:
             cursor = await connection.execute(
                 """
                 UPDATE accounts SET password_hash = %(password_hash)s, updated_at = now()
-                WHERE lower(username) = %(username)s
+                WHERE lower(username) = %(username)s AND battle_net_account_id IS NULL
                 RETURNING id
                 """,
                 {"password_hash": password_hash, "username": username},
             )
             account = await cursor.fetchone()
             if account is None:
-                raise ValueError("Account not found")
+                raise ValueError(
+                    "Unlinked account not found; linked accounts recover through Battle.net"
+                )
             await connection.execute(
                 """
                 UPDATE refresh_sessions SET revoked_at = now()

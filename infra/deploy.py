@@ -275,6 +275,29 @@ class Deployment:
         )
         os.chown(provider_target, 10001, 10001)
         provider_target.chmod(0o400)
+
+        for name in (
+            "battlenet_client_id",
+            "battlenet_client_secret",
+            "battlenet_token_encryption_key",
+        ):
+            value = (self.payload / name).read_text().strip()
+            if not value or "\n" in value or "\r" in value:
+                raise DeploymentError(
+                    "Battle.net deployment credentials must be nonempty single lines"
+                )
+            destination = self.shared / name
+            if (
+                name == "battlenet_token_encryption_key"
+                and destination.exists()
+                and destination.read_text() != value
+            ):
+                raise DeploymentError(
+                    "Battle.net encryption key differs; explicit rotation is required"
+                )
+            write_private(destination, value)
+            os.chown(destination, 10001, 10001)
+            destination.chmod(0o400)
         run(["docker", "volume", "create", "bluddit_postgres_data"])
         release = self.releases / release_id
         if release.exists():
@@ -309,7 +332,8 @@ class Deployment:
                     "BLIZZARD_STATIC_NAMESPACE",
                 )
             )
-            + f"AUTH_ALLOWED_ORIGINS=https://{self.domain}\n",
+            + f"AUTH_ALLOWED_ORIGINS=https://{self.domain}\n"
+            + f"BATTLE_NET_REDIRECT_URI=https://{self.domain}/api/oauth-redirect\n",
         )
         return release
 
@@ -344,7 +368,14 @@ class Deployment:
             directory.mkdir(exist_ok=True, mode=0o755)
             directory.chmod(0o755)
         challenge = f"location /.well-known/acme-challenge/ {{ root {webroot}; }}"
-        common = """location / {
+        common = """location = /api/oauth-redirect {
+  access_log off;
+  proxy_pass http://127.0.0.1:18080;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+}
+location / {
   proxy_pass http://127.0.0.1:18080;
   proxy_set_header Host $host;
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -159,6 +159,7 @@ jobs:
           DB_IMAGE: ${{ steps.refs.outputs.db }}
           NGINX_IMAGE: ${{ steps.refs.outputs.nginx }}
           AUTH_ALLOWED_ORIGINS: https://ci.bluddit.invalid
+          BATTLE_NET_REDIRECT_URI: https://ci.bluddit.invalid/api/oauth-redirect
           APP_ROOT: ${{ runner.temp }}/candidate
         run: |
           mkdir -p "$APP_ROOT/shared"
@@ -167,6 +168,10 @@ jobs:
           chmod 0444 "$APP_ROOT/shared/api_postgres_password"
           touch "$APP_ROOT/shared/blizzard_client_secret"
           chmod 0444 "$APP_ROOT/shared/blizzard_client_secret"
+          printf '%s' 'synthetic-client' > "$APP_ROOT/shared/battlenet_client_id"
+          printf '%s' 'synthetic-secret' > "$APP_ROOT/shared/battlenet_client_secret"
+          python3 -c 'import base64; print(base64.urlsafe_b64encode(b"x" * 32).decode(), end="")' > "$APP_ROOT/shared/battlenet_token_encryption_key"
+          chmod 0444 "$APP_ROOT"/shared/battlenet_*
           docker volume create bluddit_postgres_data
           docker compose -f infra/compose.production.yaml up -d --wait db
           docker compose -f infra/compose.production.yaml run --rm --no-deps -T migrate
@@ -201,6 +206,7 @@ jobs:
           DB_IMAGE: ${{ steps.refs.outputs.db }}
           NGINX_IMAGE: ${{ steps.refs.outputs.nginx }}
           AUTH_ALLOWED_ORIGINS: https://ci.bluddit.invalid
+          BATTLE_NET_REDIRECT_URI: https://ci.bluddit.invalid/api/oauth-redirect
           APP_ROOT: ${{ runner.temp }}/candidate
         run: docker compose -f infra/compose.production.yaml down
 
@@ -230,6 +236,9 @@ jobs:
       BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'us' }}
       BLIZZARD_LOCALE: ${{ vars.BLIZZARD_LOCALE || 'en_US' }}
       BLIZZARD_STATIC_NAMESPACE: ${{ vars.BLIZZARD_STATIC_NAMESPACE || 'static-1.60.1_70399-forever-us' }}
+      BATTLE_NET_CLIENT_ID: ${{ secrets.BATTLE_NET_CLIENT_ID }}
+      BATTLE_NET_CLIENT_SECRET: ${{ secrets.BATTLE_NET_CLIENT_SECRET }}
+      BATTLE_NET_TOKEN_ENCRYPTION_KEY: ${{ secrets.BATTLE_NET_TOKEN_ENCRYPTION_KEY }}
       SSH_KEY: ${{ secrets.SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

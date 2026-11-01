@@ -1,6 +1,13 @@
 import { ApiError, send } from '@/lib/http';
 import type { Account } from '@/features/accounts/types';
-import type { Credentials, CurrentAccount, Registration, TokenResponse } from './types';
+import type {
+  AuthorizationResponse,
+  Credentials,
+  CurrentAccount,
+  Registration,
+  RegistrationContext,
+  TokenResponse,
+} from './types';
 
 type SessionEvent = { account: CurrentAccount | null };
 type SessionMessage =
@@ -148,24 +155,48 @@ export const sessionApi = {
       throw error;
     }
   },
-  async login(credentials: Credentials): Promise<CurrentAccount> {
+  async startBattleNet(returnTo: string): Promise<AuthorizationResponse> {
+    await sessionApi.logout();
+    const expected = epoch;
+    const result = await send<AuthorizationResponse>('/api/auth/battlenet/start', {
+      method: 'POST',
+      body: JSON.stringify({ return_to: returnTo }),
+    });
+    assertEpoch(expected);
+    return result;
+  },
+  async login(credentials: Credentials, returnTo = '/home'): Promise<AuthorizationResponse> {
+    await sessionApi.logout();
+    const expected = epoch;
+    const result = await send<AuthorizationResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: credentials.username,
+        password: credentials.password,
+        return_to: returnTo,
+      }),
+    });
+    assertEpoch(expected);
+    return result;
+  },
+  async completeOAuth(): Promise<void> {
     const expected = ++epoch;
+    explicitlyLoggedOut = false;
+    token = null;
     return lock(async () => {
       assertEpoch(expected);
-      const result = await send<TokenResponse>('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username: credentials.username, password: credentials.password }),
-      });
+      const result = await send<TokenResponse>('/api/auth/token', { method: 'POST' });
       assertEpoch(expected);
-      // Verify the current account before publishing the new identity.
       const account = await send<CurrentAccount>('/api/auth/me', {
         headers: { Authorization: `Bearer ${result.access_token}` },
       });
       assertEpoch(expected);
       acceptToken(result, 'login', account);
       emit({ account });
-      return account;
     });
+  },
+  registrationContext(signal?: AbortSignal) {
+    return send<RegistrationContext>('/api/auth/battlenet/registration', { signal });
   },
   register(input: Registration) {
     return send<Account>('/api/auth/register', { method: 'POST', body: JSON.stringify(input) });

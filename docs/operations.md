@@ -129,6 +129,9 @@ repository setup. No GitHub environment or extra registry PAT is required.
 | `APP_DOMAIN` | Confirmed hostname only, without scheme/path |
 | `TLS_EMAIL` | Let's Encrypt contact email |
 | `POSTGRES_PASSWORD` | Strong nonempty database password, no line breaks |
+| `BATTLE_NET_CLIENT_ID` | Battle.net OAuth application client ID |
+| `BATTLE_NET_CLIENT_SECRET` | Battle.net OAuth application secret |
+| `BATTLE_NET_TOKEN_ENCRYPTION_KEY` | Persistent Fernet key; retain securely for recovery |
 | `SSH_KEY` | Complete private key, with original line breaks |
 | `SSH_KNOWN_HOSTS` | Independently verified SSH host entries for the configured address/port |
 
@@ -353,56 +356,106 @@ tests. Production verification and migration reruns must happen through Actions.
 
 ## Authentication and account recovery
 
-The API uses opaque bearer access tokens lasting 600 seconds and rotating refresh
-cookies lasting 30 days from the latest login/refresh. Only SHA-256 token hashes
-are stored. Each refresh replaces the current refresh hash and creates another
-access token; earlier access tokens retain their normal expiry. No refresh-token
-history or replay-triggered revocation is implemented. A reused/invalid refresh
-token returns 401 without changing the cookie or valid session. Concurrent refresh
-attempts with the same token have exactly one winner. A lost successful response
-may require signing in again.
+Battle.net OAuth is the normal sign-in and registration method. The API uses a
+confidential authorization-code exchange and requests only `openid` identity
+access. It fetches `/userinfo` and matches the immutable Battle.net account ID;
+BattleTag changes never create a different identity. Provider credentials remain
+server-side and are encrypted with Fernet before persistence.
+
+Production requires these repository secrets:
+
+- `BATTLE_NET_CLIENT_ID` and `BATTLE_NET_CLIENT_SECRET` from the Battle.net application.
+- `BATTLE_NET_TOKEN_ENCRYPTION_KEY`, a persistent Fernet key generated once with
+  `uv run --project apps/api python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`.
+
+The pipeline transfers these as restricted files into `shared/`, owned by API UID
+10001 with mode 0400, and mounts them as API-only Compose secrets. They are never
+baked into images or written into release metadata. The API supports the matching
+`*_FILE` settings. Retain the encryption key securely alongside recovery material;
+a database dump alone cannot decrypt saved tokens. Deployment refuses a silent
+key change. Key rotation requires an explicit data/recovery procedure.
+
+Deployment sets `BATTLE_NET_REDIRECT_URI=https://APP_DOMAIN/api/oauth-redirect`.
+For Bluddit the registered Battle.net redirect **must be exactly
+`https://bluddit.com/api/oauth-redirect`**. Update the previously registered
+`/oauth-redirect` URL in the Battle.net developer portal before deployment.
+Production startup fails on missing credentials, an invalid key, or a callback
+outside the configured HTTPS allowed origins. Local development uses its own
+application credentials and registered `http://localhost:8080/api/oauth-redirect`
+(or the exact alternate development origin/port). Set all four values from
+`.env.example`. Automated API/browser tests inject a synthetic provider and never
+use live credentials; this injection is confined to test fixtures.
 
 | Endpoint | Request / result |
 | --- | --- |
-| `POST /api/auth/login` | JSON `username`, `password`; returns `access_token`, `token_type: Bearer`, `expires_in: 600` and sets the refresh cookie |
-| `POST /api/auth/token` | Refresh cookie; rotates it and returns the same access-token shape |
-| `DELETE /api/auth/token` | Revokes the refresh session (invalidating all its access tokens), clears the cookie, returns 204; safe to repeat |
-| `GET /api/auth/me` | `Authorization: Bearer <access_token>`; returns `id`, `username`, `display_name`, `membership_state`, `role_name`, `timezone`, and sorted effective `permissions` |
+| `POST /api/auth/battlenet/start` | JSON optional `return_to`; returns `authorization_url` and an OAuth browser cookie |
+| `POST /api/auth/login` | Legacy JSON `username`, `password`, optional `return_to`; returns a linking `authorization_url`, never a member token |
+| `GET /api/oauth-redirect` | Server-only Battle.net callback; validates/consumes state, exchanges code, fetches identity, and redirects without codes/tokens in the SPA URL |
+| `GET /api/auth/battlenet/registration` | Verified signup cookie; returns BattleTag for confirmation |
+| `POST /api/auth/register` | Verified signup cookie and JSON `display_name`; creates a pending Member |
+| `POST /api/auth/token` | Refresh cookie; rotates it and returns `access_token`, `token_type: Bearer`, and remaining `expires_in` up to 600 seconds |
+| `DELETE /api/auth/token` | Revokes the refresh session and clears refresh/OAuth/signup cookies; returns 204; safe to repeat |
+| `GET /api/auth/me` | Bearer token; returns public account fields and sorted effective permissions |
 
-Only `active` accounts authenticate. `pending`, `rejected`, and `inactive` cannot
-log in, refresh, or use existing access tokens. Request-time account and parent
-session checks enforce immediate logout, deactivation, and password-reset effects.
-New logins are independent sessions; resetting a password invalidates every device.
-Registration and membership administration are available through the API described
-below and through the account screens. Bootstrap does not write permission mappings.
+OAuth attempts last ten minutes and store only hashes of random state and browser
+binding secrets. The HttpOnly, SameSite=Lax OAuth cookie is scoped to `/api` and
+Secure in production. Callback consumption is atomic and single use. Cancellation,
+provider failures, replay, and expired attempts require restarting. Signup uses a
+separate ten-minute, single-use cookie; only the server's verified identity can
+create the account. Return destinations are validated local paths. Proxy access
+logs omit callback queries, and the API access log filter removes code/state.
+Callback responses use `Referrer-Policy: no-referrer`; API responses are no-store.
+Never log bodies, cookies, passwords, authorization codes, or provider tokens.
 
-Set `AUTH_ALLOWED_ORIGINS` to comma-separated exact origins (scheme, hostname,
-and optional port, no trailing slash). All unsafe `/api/` requests require an
-allowed `Origin` plus `X-CSRF-Protection: 1`. Login and registration accept JSON only and have an
-8 KiB body limit. CORS credentials are not enabled. Local Compose defaults to
-`http://localhost:LOCAL_PORT` and `http://127.0.0.1:LOCAL_PORT`; override the setting
-for a different development origin. A directly run API needs the setting too.
-Production requires explicit HTTPS origins; the deployment writes
-`AUTH_ALLOWED_ORIGINS=https://APP_DOMAIN` into each release's `release.env`.
-All API responses use `Cache-Control: no-store`. Do not log
-request bodies, cookies, bearer tokens, or passwords.
+Existing members select **Migrate existing account**, verify their old password,
+then explicitly connect Battle.net. Credential proof is bound to the account and
+password version. Password resets invalidate in-flight linking; concurrent linking
+and cross-account identity conflicts cannot overwrite an existing identity.
+Successful linking preserves account ID, role, membership, and owned records,
+nulls the password hash, and revokes previous refresh sessions atomically.
+Pending/rejected/inactive accounts may link but gain no member access. Unknown
+Battle.net identities choose a display name and confirm that they are requesting
+a new pending account; they are never automatically merged with legacy accounts.
 
-The `bluddit_refresh` cookie is HttpOnly, SameSite=Strict, host-only, and scoped to
-`/api/auth/token`. It has explicit 30-day Max-Age/Expires and is Secure in
-production. Invalid refresh requests never clear it. Every unsafe request still
-requires origin/CSRF checks. A bearer token cannot be substituted for the cookie
-on refresh/logout, and the cookie does not authenticate member endpoints.
+Bluddit retains opaque bearer access tokens and rotating HttpOnly,
+SameSite=Strict refresh cookies scoped to `/api/auth/token`. Only SHA-256 Bluddit
+session token hashes are stored. Every login's refresh-session expiry is fixed at
+the earlier of its provider expiry and 24 hours; refresh never extends it. Access
+tokens last at most ten minutes and never beyond that session's expiry. Cookie
+Max-Age/Expires are capped to the same deadline. A later login on another device
+refreshes the account's saved provider token without prolonging earlier sessions.
+No provider refresh token is used. Expiry requires Battle.net sign-in again.
+Current membership and parent-session validity are checked on every protected
+request. Concurrent refresh has exactly one winner; reused/invalid refresh tokens
+return 401 without altering a valid session or cookie. Lost successful responses
+may require signing in again.
 
-Login attempts are limited in application memory to 10 per normalized username
-per fixed 15-minute window, including successful attempts. Limits return 429 and
-`Retry-After`. Up to 10,000 active username counters are retained; when full, new
-keys are rejected until space expires. Counter reservation is concurrency-safe;
-expired counters are cleaned as requests arrive. Restart clears counters, and
-limits apply per process. Run one API worker/replica until shared counters are
-introduced. Registration has a separate process-wide bucket of 10 attempts per
-15 minutes, including duplicates and successes; changing usernames does not bypass
-it. This deliberately conservative limit suits the initial single-guild rollout.
-Two password hashing/verification operations can run concurrently to bound Argon2 memory.
+Set `AUTH_ALLOWED_ORIGINS` to exact comma-separated origins, without trailing
+slashes. All unsafe `/api/` requests require an allowed `Origin` and
+`X-CSRF-Protection: 1`. OAuth start, legacy proof, and signup require JSON and have
+an 8 KiB body limit. The external GET callback instead uses state/browser binding.
+CORS credentials are not enabled. Password proof is limited to ten attempts per
+normalized username per fifteen minutes; signup has a separate global ten-attempt
+bucket. OAuth start has a global 1,000-attempt bucket per fifteen minutes. Limits
+return 429 with Retry-After and reset on process restart. Run one API worker until
+shared counters exist. Two password verifications and ten provider exchanges can
+run concurrently.
+
+**Rollout and recovery:** migration `0008_battlenet_auth.sql` immediately revokes
+all pre-OAuth sessions and retains legacy passwords until successful linking.
+Normal deployment already takes and verifies a database backup before pending
+migrations. Confirm that backup succeeds, the registered callback is correct, and
+all three repository secrets exist before merge/deployment. Migrations 0001–0007
+remain unchanged. Once passwords are nulled, rolling back to a password-only image
+is incompatible: use a forward fix or a compatible Battle.net release. Restoring
+a pre-migration dump discards subsequent member changes and is not routine image
+rollback. Preserve newly linked accounts and records when planning recovery.
+
+Production acceptance remains separate from automated tests. With dedicated test
+records, verify a new signup/approval/login, a legacy migration preserving owned
+records, a duplicate-identity rejection, logout, denied membership, and session
+expiry. Record deployed images and results in issue #55. Do not close it merely
+because the implementation PR or local checks are complete.
 
 ### Membership administration API
 
@@ -413,7 +466,7 @@ and repository method, gated by `accounts.manage`.
 
 | Endpoint | Request / result |
 | --- | --- |
-| `POST /api/auth/register` | Public JSON `username`, `display_name` (trimmed, 1–100 characters), `password` (12–128 characters); returns 201 with the pending Member account, without tokens/cookies |
+| `POST /api/auth/register` | Verified Battle.net signup cookie and JSON `display_name` (trimmed, 1–100 characters); returns 201 with the pending Member account, no member session |
 | `GET /api/accounts` | Optional `membership_state`, `limit` (1–100, default 50), `offset` (default 0); returns `{accounts, limit, offset}` ordered by ID |
 | `GET /api/accounts/{account_id}` | Returns public account fields only |
 | `POST /api/accounts/{account_id}/approve` | Pending → active |
@@ -426,7 +479,7 @@ and repository method, gated by `accounts.manage`.
 | `GET /api/permissions` | Read-only `{permissions, roles}` catalog and fixed mappings |
 
 Account results contain `id`, `username`, `display_name`, `membership_state`,
-`role_name`, and `timezone`; credential hashes and session records are excluded.
+`role_name`, `timezone`, and nullable `battletag`; `username` is nullable for new Battle.net accounts. Credential hashes, provider tokens, and session records are excluded.
 Mutations return the resulting target account. Unknown accounts return 404,
 invalid input 422, invalid state transitions/repeated actions/duplicate usernames
 409, missing or invalid authentication 401, and insufficient authority 403.
@@ -492,8 +545,11 @@ sudo docker compose --env-file release.env -f compose.production.yaml exec api p
 Do not add `-T`; hidden prompts need a terminal. These two account operations are
 the approved exception to Actions-only production mutations. Bootstrap is serialized
 and refuses to create another officer while an active Officer or Guild Master
-exists. It never upgrades an existing account. Password reset leaves membership
-and role unchanged and revokes every refresh session atomically with the update.
+exists. It never upgrades an existing account. Password reset is available only for unlinked legacy accounts, leaves membership
+and role unchanged, and revokes every refresh session atomically with the update.
+A bootstrap password grants migration proof only; select **Migrate existing account**
+at login before accessing the site. Linked accounts recover through Battle.net;
+unlinking and administrator relinking are not implemented.
 Commands report sanitized failures without passwords or database diagnostics.
 
 Migration `0002_refresh_sessions.sql` adds refresh sessions and links access-token
@@ -522,12 +578,13 @@ fails, while making the server failure visible to the user.
 ## Account UI and shell
 
 The entry route `/` sends visitors to `/login` or authenticated members to `/home`.
-Registration at `/register` creates a pending account and opens `/pending-approval`;
-it does not create a session or expose membership status publicly. Officers use
+Registration at `/register` begins Battle.net sign-in, then `/register/complete`
+collects a display name and new-account confirmation before creating a pending
+account and opening `/pending-approval`. It does not create a member session. Officers use
 `/admin/accounts`; Officers and GM can read `/admin/permissions`. GM-only role and
 succession controls use the existing explicit account endpoints. Unbuilt member
-features show temporary empty states. Password recovery remains the administrative
-CLI workflow above.
+features show temporary empty states. Legacy password recovery uses the administrative
+CLI above; linked accounts use Battle.net recovery.
 
 The frontend uses local shadcn/ui primitives, Tailwind CSS, and a dark theme.
 `apps/web/app/features/` groups screens, API contracts, and query options by feature.
@@ -544,7 +601,7 @@ protected requests and remove cached member data. No query persistence is enable
 credentials are read by mutation functions without entering mutation variables,
 and access tokens remain solely in the session module's memory. Modern browsers
 with Web Locks and BroadcastChannel over HTTPS (or localhost development) are
-required. There are no new environment variables or database migrations.
+required. Battle.net configuration and migration 0008 are described above.
 
 For host development, `npm --prefix apps/web run dev` proxies `/api` to an API on
 `127.0.0.1:8000`. Set the API's `AUTH_ALLOWED_ORIGINS` to the exact frontend origin,
@@ -566,8 +623,8 @@ Installation attempt numbers and exit codes appear in the Actions log. Tests
 still run once and must pass; installation retries do not retry test failures.
 `make web-test` runs Playwright;
 `make verify` includes it. Set `TEST_DATABASE_URL` as described above to include
-the real registration/approval/login test. Without it, the frontend-only test
-command explicitly skips that integration test; full `make verify` still requires
+the real OAuth registration/approval/login, migration, and event tests. Without it, the frontend-only test
+command explicitly skips those integration tests; full `make verify` still requires
 the variable for database checks. The browser fixture requires a database name
 ending in `_test`, creates a separate random database, applies current migrations,
 seeds a synthetic GM, runs a test-only API on loopback port 18005, and drops the

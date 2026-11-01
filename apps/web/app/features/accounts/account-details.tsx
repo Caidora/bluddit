@@ -46,7 +46,16 @@ export function AccountDetails() {
       >
         ← Membership
       </button>
-      <PageTitle description={`u/${target.username}`}>{target.display_name}</PageTitle>
+      <PageTitle
+        description={
+          target.battletag ??
+          (target.username
+            ? `u/${target.battletag ?? target.username ?? target.id}`
+            : `Account #${target.id}`)
+        }
+      >
+        {target.display_name}
+      </PageTitle>
       <Card>
         <CardContent className="p-5">
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-sm">

@@ -31,6 +31,9 @@ def test_swagger_and_schema_are_available_under_api_prefix(monkeypatch, environm
     monkeypatch.setenv("PGPASSWORD", "test-password")
     monkeypatch.delenv("PGPASSWORD_FILE", raising=False)
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "https://bluddit.example")
+    from oauth_helpers import configure_battlenet
+
+    configure_battlenet(monkeypatch, "https://bluddit.example")
     # Documentation does not require the database pool or application lifespan.
     client = TestClient(create_app())
     response = client.get("/api/docs")

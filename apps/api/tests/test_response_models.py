@@ -10,7 +10,12 @@ from bluddit_api.models.accounts import Account
 from bluddit_api.routes import accounts
 from bluddit_api.routes.responses import AccountResponse
 from bluddit_api.utils.auth import current_account
-from bluddit_api.utils.dependencies import get_membership_repository
+from bluddit_api.utils.dependencies import (
+    get_membership_repository,
+    get_oauth_repository,
+)
+from bluddit_api.utils.battlenet import REGISTRATION_COOKIE
+from bluddit_api.utils.security import new_token
 
 
 class InternalAccount(Account):
@@ -42,6 +47,7 @@ def response_client(monkeypatch, account_record):
     app = create_app()
     repository = AsyncMock()
     app.dependency_overrides[get_membership_repository] = lambda: repository
+    app.dependency_overrides[get_oauth_repository] = lambda: repository
     app.dependency_overrides[current_account] = lambda: account_record.model_copy(
         update={"id": 1, "role_name": "guild_master"}
     )
@@ -115,14 +121,8 @@ def test_registration_filters_repository_fields(response_client, account_record)
     repository.register.return_value = account_record.model_copy(
         update={"membership_state": "pending"}
     )
-    response = client.post(
-        "/api/auth/register",
-        json={
-            "username": "member",
-            "display_name": "Member",
-            "password": "test-password",
-        },
-    )
+    client.cookies.set(REGISTRATION_COOKIE, new_token(), path="/api")
+    response = client.post("/api/auth/register", json={"display_name": "Member"})
     assert response.status_code == 201
     assert response.json()["membership_state"] == "pending"
     assert set(response.json()) == set(AccountResponse.model_fields)

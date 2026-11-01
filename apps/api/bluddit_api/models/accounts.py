@@ -13,12 +13,14 @@ class AccountState(BaseModel):
 
 
 class Account(AccountState):
-    username: str
+    username: str | None
     display_name: str
     timezone: str | None
+    battletag: str | None = None
 
 
 class AccountCredentials(BaseModel):
     id: int
-    password_hash: str = Field(repr=False)
+    password_hash: str | None = Field(repr=False)
+    battle_net_account_id: int | None = None
     membership_state: MembershipState

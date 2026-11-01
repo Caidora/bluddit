@@ -20,8 +20,30 @@ export function connectSession(client: QueryClient) {
 export const meOptions = () =>
   queryOptions({ queryKey: authKeys.me, queryFn: ({ signal }) => sessionApi.me(signal) });
 // Read credentials at execution time; they never become mutation variables/data.
-export const loginOptions = (read: () => Credentials) =>
-  mutationOptions({ mutationFn: () => sessionApi.login(read()) });
+export const loginOptions = (read: () => Credentials, returnTo = '/home') =>
+  mutationOptions({ mutationFn: () => sessionApi.login(read(), returnTo) });
+export const battleNetOptions = () =>
+  mutationOptions({
+    mutationFn: (returnTo: string) => sessionApi.startBattleNet(returnTo),
+  });
+export const registrationContextOptions = () =>
+  queryOptions({
+    queryKey: ['auth', 'registration'],
+    queryFn: ({ signal }) => sessionApi.registrationContext(signal),
+    gcTime: 0,
+  });
+export const completionOptions = () =>
+  queryOptions({
+    queryKey: ['auth', 'completion'],
+    queryFn: async () => {
+      await sessionApi.completeOAuth();
+      return true;
+    },
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
 export const registrationOptions = (read: () => Registration) =>
   mutationOptions({ mutationFn: () => sessionApi.register(read()) });
 export const logoutOptions = () => mutationOptions({ mutationFn: () => sessionApi.logout() });

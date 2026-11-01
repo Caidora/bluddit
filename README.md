@@ -8,7 +8,7 @@ The [Bludlets spreadsheet](https://docs.google.com/spreadsheets/d/1CtopiBvc1u_sk
 
 As of 1 November 2026, Release 1 is in development.
 
-- **Available:** the application foundation and production deployment, database migrations, session login/logout, registration and membership approval, account administration, permissions, and the guild handbook with officer editing and revision history.
+- **Available:** the application foundation and production deployment, database migrations, Battle.net sign-in and legacy account migration, membership approval, account administration, permissions, and the guild handbook with officer editing and revision history.
 - **Merged:** the Bluds directory, character details, professions, and dungeon completion tracking are now included on `main`. Production acceptance is recorded separately from implementation.
 - **Implemented locally:** Blizzard-backed reference catalogs with durable hourly caching, automatic supported additions and preserved history (issue #57); live provider/production acceptance is pending. Farming zones are deferred.
 - **Implemented locally:** event creation, editing, cancellation, organizer assignments, and timezone-aware scheduling (issue #20 section 11); production acceptance remains pending.
@@ -20,7 +20,7 @@ The full Release 1 experience is not complete. Some member pages are still place
 
 | Area | Intended experience |
 | --- | --- |
-| Accounts and access | Username/password accounts, officer-approved membership, session-based access, and server-enforced permissions |
+| Accounts and access | Battle.net accounts, one-time migration for existing password accounts, officer-approved membership, daily session expiry, and server-enforced permissions |
 | Bluds | A searchable directory of members’ characters, with class/spec, professions and levels, creation date, and dungeon progress including an interest in rerunning completed dungeons |
 | Events | Member-created activities with a start time displayed in the viewer’s timezone, optional destination, group size and duration, plus signups and roster management; raid-specific support is deferred |
 | Personal gear wishlist | Character-owned item goals, sources and notes, filtering, and needed/acquired updates with undo |
@@ -55,6 +55,15 @@ cp .env.example .env
 make dev
 ```
 
+Battle.net sign-in needs a development OAuth application with the exact redirect
+`http://localhost:8080/api/oauth-redirect` registered. Set all four `BATTLE_NET_*`
+values shown in `.env.example` before starting the API. Generate a local Fernet
+key using `uv run --project apps/api python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`.
+Keep this key outside source control. Without OAuth configuration, the local stack
+can start but sign-in is unavailable. Automated tests inject a synthetic provider
+and never require a real Battle.net account. Production uses
+`https://bluddit.com/api/oauth-redirect`; see the [runbook](docs/operations.md#authentication-and-account-recovery).
+
 Open [localhost:8080](http://localhost:8080). `make dev` starts PostgreSQL, applies migrations, and runs the web/API stack with source reload. The first build downloads dependencies and images. Use `make up` for production-style local containers instead.
 
 If port 8080 is in use, set `LOCAL_PORT` in `.env` and use that port in the browser. If Docker Desktop reports a denied bind mount, allow the checkout directory in its file-sharing settings. Source edits reload automatically; rerun `make dev` after dependency or container configuration changes.
@@ -65,7 +74,7 @@ A fresh database has no approved accounts. Create the first local officer intera
 docker compose exec api python -m bluddit_api.admin create-first-officer --username local_officer --display-name 'Local Officer'
 ```
 
-The command prompts for a password and refuses a second bootstrap once an active Officer or GM exists. See the [runbook](docs/operations.md#interactive-administrative-cli) for password recovery and GM setup.
+The command prompts for a temporary legacy password and refuses a second bootstrap once an active Officer or GM exists. Select **Migrate existing account** at login to verify that password and link Battle.net; bootstrap credentials alone do not grant website access. See the [runbook](docs/operations.md#interactive-administrative-cli) for legacy password recovery and GM setup.
 
 | Action | Command |
 | --- | --- |

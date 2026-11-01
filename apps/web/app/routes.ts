@@ -3,6 +3,8 @@ import { index, layout, route, type RouteConfig } from '@react-router/dev/routes
 export default [
   route('login', 'routes/login.tsx'),
   route('register', 'routes/register.tsx'),
+  route('register/complete', 'routes/register-complete.tsx'),
+  route('auth/complete', 'routes/auth-complete.tsx'),
   route('pending-approval', 'routes/pending-approval.tsx'),
   route('logout', 'routes/logout.tsx'),
   route('unauthorized', 'routes/unauthorized.tsx'),
