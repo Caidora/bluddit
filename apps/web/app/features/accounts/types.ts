@@ -2,7 +2,8 @@ export type MembershipState = 'pending' | 'active' | 'rejected' | 'inactive';
 export type Role = 'member' | 'officer' | 'guild_master';
 export interface Account {
   id: number;
-  username: string;
+  username: string | null;
+  battletag: string | null;
   display_name: string;
   membership_state: MembershipState;
   role_name: Role;

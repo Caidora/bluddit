@@ -12,11 +12,12 @@ class AccountResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    username: str
+    username: str | None
     display_name: str
     membership_state: MembershipState
     role_name: Role
     timezone: str | None
+    battletag: str | None = None
 
 
 class AccountListResponse(BaseModel):

@@ -1,73 +1,85 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
+import { Link, Navigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageTitle, ErrorNotice } from '@/components/patterns';
-import { loginOptions, registrationOptions, meOptions } from './queries';
-import { ArrowRight } from 'lucide-react';
+import { battleNetOptions, loginOptions, meOptions } from './queries';
 import { AuthFrame } from './auth-frame';
 import { safeReturn } from './safe-return';
 
+const authErrors: Record<string, string> = {
+  expired: 'This sign-in attempt expired or was already used. Please start again.',
+  cancelled: 'Battle.net sign-in was cancelled. You can try again.',
+  provider: 'Battle.net could not complete sign-in. Please try again.',
+  link_conflict:
+    'The account could not be linked. It may already be linked, or your password changed. Start again or contact a guild officer.',
+  membership: 'This account does not have active membership. Contact a guild officer.',
+};
+
 export function AccountForm({ registering = false }: { registering?: boolean }) {
   const [params] = useSearchParams();
-  const navigate = useNavigate();
   const session = useQuery(meOptions());
+  const [migrating, setMigrating] = useState(params.get('migrate') === '1');
   const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [authorizationUrl, setAuthorizationUrl] = useState('');
   const [error, setError] = useState<unknown>();
-  const credentials = useRef({ username: '', password: '', display_name: '' });
-  const login = useMutation(loginOptions(() => credentials.current));
-  const register = useMutation(registrationOptions(() => credentials.current));
-  const mutation = registering ? register : login;
+  const credentials = useRef({ username: '', password: '' });
+  const returnTo = safeReturn(params.get('returnTo'));
+  const login = useMutation(loginOptions(() => credentials.current, returnTo));
+  const start = useMutation(battleNetOptions());
+  useEffect(
+    () => () => {
+      credentials.current = { username: '', password: '' };
+    },
+    []
+  );
   useEffect(() => {
-    setError(undefined);
     setPassword('');
-    return () => {
-      credentials.current = { username: '', password: '', display_name: '' };
-    };
-  }, [registering]);
+    setAuthorizationUrl('');
+    setError(undefined);
+    setMigrating(params.get('migrate') === '1');
+  }, [registering, params]);
+  const busy = session.isPending || login.isPending || start.isPending;
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (session.isPending) return;
+    if (busy) return;
     setError(undefined);
-    // HTML constraints handle field validation without discarding entered values.
-    if (registering && !displayName.trim()) {
-      setError(new Error('Display name is required.'));
-      return;
-    }
-    credentials.current = { username, password, display_name: displayName };
-    const callbacks = {
-      onSuccess: () => {
+    credentials.current = { username, password };
+    login.mutate(undefined, {
+      onSuccess: (result) => {
+        setAuthorizationUrl(result.authorization_url);
         setPassword('');
-        credentials.current.password = '';
-        navigate(registering ? '/pending-approval' : safeReturn(params.get('returnTo')), {
-          replace: true,
-        });
       },
-      onError: (failure: unknown) => setError(failure),
+      onError: setError,
       onSettled: () => {
-        credentials.current = { username: '', password: '', display_name: '' };
+        credentials.current = { username: '', password: '' };
         login.reset();
-        register.reset();
       },
-    };
-    if (registering) register.mutate(undefined, callbacks);
-    else login.mutate(undefined, callbacks);
+    });
   }
-  if (session.data) return <Navigate to={safeReturn(params.get('returnTo'))} replace />;
+  function beginBattleNet() {
+    setError(undefined);
+    start.mutate(returnTo, {
+      onSuccess: (result) => window.location.assign(result.authorization_url),
+      onError: setError,
+    });
+  }
+  if (session.data) return <Navigate to={returnTo} replace />;
   return (
     <AuthFrame>
       <PageTitle
         description={
-          registering
-            ? 'Create an account. An officer will approve your membership before you can log in.'
-            : 'Welcome back. Your guild is right here.'
+          migrating
+            ? 'Keep your membership and Bluds by linking your existing account.'
+            : registering
+              ? 'Sign in with Battle.net, then request membership. An officer will approve your account.'
+              : 'Welcome back. Continue with Battle.net to reach your guild.'
         }
       >
-        {registering ? 'Join Bluds' : 'Log in'}
+        {migrating ? 'Migrate account' : registering ? 'Join Bluds' : 'Log in'}
       </PageTitle>
       {session.isError && (
         <ErrorNotice
@@ -77,94 +89,101 @@ export function AccountForm({ registering = false }: { registering?: boolean }) 
           }}
         />
       )}
+      {authErrors[params.get('authError') ?? ''] && (
+        <ErrorNotice error={new Error(authErrors[params.get('authError')!])} />
+      )}
       {error != null && <ErrorNotice error={error} />}
-      <form
-        onSubmit={submit}
-        className="space-y-5"
-        aria-label={registering ? 'Registration' : 'Login'}
-      >
-        {registering && (
-          <div className="space-y-2">
-            <Label htmlFor="display-name">Display name</Label>
-            <Input
-              id="display-name"
-              autoComplete="nickname"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-              maxLength={100}
-            />
-          </div>
-        )}
-        <div className="space-y-2">
-          <Label htmlFor="username">Username</Label>
-          <Input
-            id="username"
-            name="username"
-            autoComplete="username"
-            autoCapitalize="none"
-            spellCheck={false}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            minLength={3}
-            maxLength={32}
-            pattern="[a-zA-Z0-9_]{3,32}"
-            aria-describedby="username-help"
-          />
-          <p id="username-help" className="text-xs text-muted-foreground">
-            3–32 letters, numbers, or underscores.
+      {!migrating && (
+        <>
+          <Button className="h-11 w-full rounded-full" disabled={busy} onClick={beginBattleNet}>
+            {session.isPending
+              ? 'Checking session…'
+              : start.isPending
+                ? 'Please wait…'
+                : 'Continue with Battle.net'}
+          </Button>
+          <p className="mt-4 text-sm text-muted-foreground">
+            Already have a username and password? Migrate your existing account first to preserve
+            your Bluds and membership.
           </p>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete={registering ? 'new-password' : 'current-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={registering ? 12 : 1}
-            maxLength={128}
-            aria-describedby={registering ? 'password-help' : undefined}
-          />
-          {registering && (
-            <p id="password-help" className="text-xs text-muted-foreground">
-              Use 12–128 characters.
+        </>
+      )}
+      <Button
+        variant="link"
+        className="mt-2 px-0"
+        onClick={() => {
+          setMigrating(!migrating);
+          setAuthorizationUrl('');
+          setPassword('');
+        }}
+        aria-expanded={migrating}
+      >
+        {migrating ? 'Back to Battle.net sign-in' : 'Migrate existing account'}
+      </Button>
+      {migrating &&
+        (authorizationUrl ? (
+          <div className="mt-4 space-y-4" role="region" aria-label="Connect Battle.net">
+            <p>
+              Your old credentials are verified. Connect the Battle.net account you want to use for
+              future sign-ins.
             </p>
-          )}
-        </div>
-        <Button
-          type="submit"
-          className="h-11 w-full rounded-full"
-          disabled={session.isPending || mutation.isPending}
-        >
-          {session.isPending
-            ? 'Checking session…'
-            : mutation.isPending
-              ? 'Please wait…'
-              : registering
-                ? 'Request membership'
-                : 'Log in'}
-          <ArrowRight />
-        </Button>
-      </form>
+            <Button asChild className="w-full rounded-full">
+              <a href={authorizationUrl}>Connect Battle.net</a>
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              Your password will be removed only after linking succeeds.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="mt-4 space-y-5" aria-label="Migrate existing account">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                name="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                minLength={3}
+                maxLength={32}
+                pattern="[a-zA-Z0-9_]{3,32}"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={1}
+                maxLength={128}
+              />
+            </div>
+            <Button type="submit" className="w-full rounded-full" disabled={busy}>
+              {login.isPending ? 'Please wait…' : 'Verify existing account'}
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              Need help with your old password? Contact a guild officer. Linked accounts use
+              Battle.net account recovery.
+            </p>
+          </form>
+        ))}
       <p className="mt-6 text-sm text-muted-foreground">
-        {registering ? 'Already registered? ' : 'New to Bluds? '}
+        {registering ? 'Already a member? ' : 'New to Bluds? '}
         <Link
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="font-medium text-primary underline"
           to={registering ? '/login' : '/register'}
         >
           {registering ? 'Log in' : 'Create an account'}
         </Link>
       </p>
-      {!registering && (
-        <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-          Waiting for approval or need a password reset? Contact a guild officer.
-        </p>
-      )}
     </AuthFrame>
   );
 }

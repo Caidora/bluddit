@@ -3,7 +3,7 @@
 import asyncio
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import math
 import os
 import time
@@ -16,7 +16,7 @@ from bluddit_api.utils.dependencies import AuthRepositoryDep
 from bluddit_api.utils.security import token_hash
 
 ACCESS_SECONDS = 600
-REFRESH_SECONDS = 30 * 24 * 60 * 60
+REFRESH_SECONDS = 24 * 60 * 60
 COOKIE_NAME = "bluddit_refresh"
 TOKEN_PATH = "/api/auth/token"
 
@@ -60,9 +60,10 @@ class AuthSettings:
 class LoginThrottle:
     """Process-local fixed windows; never evict an unexpired bucket to admit a key."""
 
-    def __init__(self, *, capacity=10000, clock=time.monotonic):
+    def __init__(self, *, capacity=10000, attempts=10, clock=time.monotonic):
         self.buckets = OrderedDict()
         self.capacity = capacity
+        self.attempts = attempts
         self.clock = clock
         self.lock = asyncio.Lock()
 
@@ -82,7 +83,7 @@ class LoginThrottle:
                     )
                 bucket = [now + 900, 0]
                 self.buckets[username] = bucket
-            if bucket[1] >= 10:
+            if bucket[1] >= self.attempts:
                 raise HTTPException(
                     429,
                     "Try again later",
@@ -97,12 +98,15 @@ def unauthorized():
     )
 
 
-def set_refresh_cookie(response: Response, token: str, settings: AuthSettings):
+def set_refresh_cookie(
+    response: Response, token: str, settings: AuthSettings, expires_at: datetime
+):
+    remaining = max(0, int((expires_at - datetime.now(timezone.utc)).total_seconds()))
     response.set_cookie(
         COOKIE_NAME,
         token,
-        max_age=REFRESH_SECONDS,
-        expires=datetime.now(timezone.utc) + timedelta(seconds=REFRESH_SECONDS),
+        max_age=remaining,
+        expires=expires_at.astimezone(timezone.utc),
         path=TOKEN_PATH,
         secure=settings.secure,
         httponly=True,

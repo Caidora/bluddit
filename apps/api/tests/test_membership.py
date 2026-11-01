@@ -11,7 +11,9 @@ import psycopg
 from bluddit_api.main import create_app
 from bluddit_api.models.accounts import Account, AccountState
 from bluddit_api.database import get_database
-from bluddit_api.utils.dependencies import get_membership_repository
+from bluddit_api.utils.dependencies import get_oauth_repository
+from bluddit_api.utils.battlenet import REGISTRATION_COOKIE
+from bluddit_api.utils.security import new_token, token_hash
 from bluddit_api.utils.permissions import Permission, Role, RolePolicy
 
 
@@ -55,14 +57,12 @@ def test_registration_guards_validation_normalization_and_throttle(monkeypatch):
         timezone=None,
     )
     app = create_app()
-    app.dependency_overrides[get_membership_repository] = lambda: repository
-    body = {
-        "username": " New_Member ",
-        "display_name": " New Member ",
-        "password": "private-password",
-    }
+    app.dependency_overrides[get_oauth_repository] = lambda: repository
+    body = {"display_name": " New Member "}
     headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
     with TestClient(app) as client:
+        ticket = new_token()
+        client.cookies.set(REGISTRATION_COOKIE, ticket, path="/api")
         assert client.post("/api/auth/register", json=body).status_code == 403
         assert (
             client.post(
@@ -92,11 +92,9 @@ def test_registration_guards_validation_normalization_and_throttle(monkeypatch):
             assert "private-password" not in response.text
         response = client.post("/api/auth/register", headers=headers, json=body)
         assert response.status_code == 201
-        assert "set-cookie" not in response.headers
+        assert REGISTRATION_COOKIE in response.headers["set-cookie"]
         assert response.headers["cache-control"] == "no-store"
-        username, display_name, encoded = repository.register.await_args.args
-        assert (username, display_name) == ("new_member", "New Member")
-        assert encoded.startswith("$argon2id$") and "private-password" not in encoded
+        repository.register.assert_awaited_once_with(token_hash(ticket), "New Member")
         # Exhaust the bucket without spending time hashing more passwords.
         for _ in range(9):
             import asyncio
@@ -105,7 +103,7 @@ def test_registration_guards_validation_normalization_and_throttle(monkeypatch):
         response = client.post(
             "/api/auth/register",
             headers=headers,
-            json={**body, "username": "different"},
+            json=body,
         )
         assert response.status_code == 429 and "retry-after" in response.headers
         assert repository.register.await_count == 1
@@ -116,9 +114,7 @@ def test_registration_commit_failure_cannot_return_success(monkeypatch):
     monkeypatch.setenv("APP_ENV", "test")
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
     connection = AsyncMock()
-    connection.execute.return_value.fetchone.return_value = {
-        "membership_state": "pending"
-    }
+    connection.execute.return_value.fetchone.return_value = None
 
     @asynccontextmanager
     async def transaction():
@@ -130,14 +126,11 @@ def test_registration_commit_failure_cannot_return_success(monkeypatch):
         transaction=transaction
     )
     with TestClient(app) as client:
+        client.cookies.set(REGISTRATION_COOKIE, new_token(), path="/api")
         response = client.post(
             "/api/auth/register",
             headers={"Origin": "http://testserver", "X-CSRF-Protection": "1"},
-            json={
-                "username": "member",
-                "display_name": "Member",
-                "password": "private-password",
-            },
+            json={"display_name": "Member"},
         )
     assert response.status_code == 503
     assert "private-commit-failure" not in response.text

@@ -182,6 +182,15 @@ class DeploymentTests(unittest.TestCase):
         manifest["release_id"] = "a" * 40 + "-123"
         (self.payload / "manifest.json").write_text(json.dumps(manifest))
         (self.payload / "postgres_password").write_text("test-password")
+        for name, value in (
+            ("battlenet_client_id", "synthetic-client"),
+            ("battlenet_client_secret", "synthetic-secret"),
+            (
+                "battlenet_token_encryption_key",
+                "eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHg=",
+            ),
+        ):
+            (self.payload / name).write_text(value)
         return manifest
 
     def test_mutable_image_tags_are_rejected(self):
@@ -216,7 +225,16 @@ class DeploymentTests(unittest.TestCase):
             )
             release = self.operation.stage()
         api_password = self.operation.shared / "api_postgres_password"
-        chown.assert_called_once_with(api_password, 10001, 10001)
+        chown.assert_any_call(api_password, 10001, 10001)
+        self.assertEqual(chown.call_count, 4)
+        for name in (
+            "battlenet_client_id",
+            "battlenet_client_secret",
+            "battlenet_token_encryption_key",
+        ):
+            target = self.operation.shared / name
+            self.assertEqual(target.read_text(), (self.payload / name).read_text())
+            self.assertEqual(target.stat().st_mode & 0o777, 0o400)
         self.assertEqual(api_password.read_text(), "test-password")
         self.assertEqual(api_password.stat().st_mode & 0o777, 0o400)
         self.assertEqual(
@@ -227,7 +245,30 @@ class DeploymentTests(unittest.TestCase):
             "AUTH_ALLOWED_ORIGINS=https://example.com\n",
             (release / "release.env").read_text(),
         )
+        self.assertIn(
+            "BATTLE_NET_REDIRECT_URI=https://example.com/api/oauth-redirect\n",
+            (release / "release.env").read_text(),
+        )
+        self.assertNotIn("synthetic-secret", (release / "release.env").read_text())
         self.assertFalse((self.root / "current").exists())
+
+    def test_battlenet_encryption_key_cannot_be_silently_rotated(self):
+        self.prepare_stage()
+        with (
+            self.operation.locked(),
+            patch.object(deploy, "run"),
+            patch.object(os, "chown"),
+        ):
+            (self.operation.shared / "postgres_password").write_text("test-password")
+            (self.operation.shared / "battlenet_token_encryption_key").write_text(
+                "different-existing-key"
+            )
+            with self.assertRaisesRegex(deploy.DeploymentError, "explicit rotation"):
+                self.operation.stage()
+            self.assertEqual(
+                (self.operation.shared / "battlenet_token_encryption_key").read_text(),
+                "different-existing-key",
+            )
 
     def test_database_password_cannot_be_silently_rotated(self):
         self.prepare_stage()

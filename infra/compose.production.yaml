@@ -21,6 +21,10 @@ services:
     environment:
       APP_ENV: production
       AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:?AUTH_ALLOWED_ORIGINS is required}
+      BATTLE_NET_CLIENT_ID_FILE: /run/secrets/battlenet_client_id
+      BATTLE_NET_CLIENT_SECRET_FILE: /run/secrets/battlenet_client_secret
+      BATTLE_NET_TOKEN_ENCRYPTION_KEY_FILE: /run/secrets/battlenet_token_encryption_key
+      BATTLE_NET_REDIRECT_URI: ${BATTLE_NET_REDIRECT_URI:?BATTLE_NET_REDIRECT_URI is required}
       PGHOST: db
       PGDATABASE: bluddit
       PGUSER: bluddit
@@ -28,6 +32,9 @@ services:
     secrets:
       - source: api_postgres_password
         target: postgres_password
+      - battlenet_client_id
+      - battlenet_client_secret
+      - battlenet_token_encryption_key
     depends_on:
       db:
         condition: service_healthy
@@ -66,6 +73,12 @@ services:
       web:
         condition: service_healthy
 secrets:
+  battlenet_client_id:
+    file: ${APP_ROOT:?APP_ROOT is required}/shared/battlenet_client_id
+  battlenet_client_secret:
+    file: ${APP_ROOT:?APP_ROOT is required}/shared/battlenet_client_secret
+  battlenet_token_encryption_key:
+    file: ${APP_ROOT:?APP_ROOT is required}/shared/battlenet_token_encryption_key
   api_postgres_password:
     file: ${APP_ROOT:?APP_ROOT is required}/shared/api_postgres_password
   postgres_password:

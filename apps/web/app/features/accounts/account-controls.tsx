@@ -94,7 +94,7 @@ export function AccountControls({ target }: { target: Account }) {
             <AlertDialogDescription>
               {confirmation === 'pass-guild-master'
                 ? `Transfer leadership to ${target.display_name}? You will become an Officer and lose GM-only controls.`
-                : `This will change access for ${target.display_name} (${target.username}). Confirm that this is the intended account.`}
+                : `This will change access for ${target.display_name} (${target.battletag ?? target.username ?? target.id}). Confirm that this is the intended account.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

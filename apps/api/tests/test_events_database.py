@@ -1,5 +1,7 @@
 """Persisted event authorization, lifecycle, filters and lock behavior."""
 
+from oauth_helpers import linked_session, FakeBattleNetClient
+
 import asyncio
 from datetime import UTC, datetime, timedelta
 
@@ -8,10 +10,9 @@ import pytest
 
 from bluddit_api.main import create_app
 from bluddit_api.migrate import run_migrations
-from bluddit_api.repositories.auth import AuthRepository
 from bluddit_api.repositories.events import EventsRepository, EventForbidden
 from bluddit_api.models.events import EventPatch
-from bluddit_api.utils.security import new_token, token_hash
+from bluddit_api.utils.security import new_token
 
 pytestmark = pytest.mark.anyio
 CONTENT = {
@@ -41,12 +42,11 @@ async def events(database, monkeypatch):
             )
             ids[username] = (await cursor.fetchone())[0]
         token = new_token()
-        assert await AuthRepository(database).create_session(
-            ids[username], "test-hash", token_hash(new_token()), token_hash(token)
-        )
+        assert await linked_session(database, ids[username], token)
         tokens[username] = {"Authorization": "Bearer " + token}
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://test")
     app = create_app()
+    app.state.battlenet_client = FakeBattleNetClient()
     async with (
         app.router.lifespan_context(app),
         AsyncClient(

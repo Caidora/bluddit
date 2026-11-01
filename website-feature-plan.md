@@ -8,7 +8,7 @@ See the [README](README.md#project-status) for current availability. The section
 
 ## Accounts and access
 
-Username/password registration creates a pending Member requiring officer approval. Active members use server-side sessions. Officers administer membership and guild knowledge; only the GM changes account roles or transfers the GM role. Password recovery uses the administrative CLI, without email or third-party login integration.
+Battle.net sign-in is the only normal login and registration method. Existing password accounts require one-time credential verification and Battle.net linking before access, preserving their membership and records. New users choose a display name and request officer approval as pending Members. Active members use server-side sessions capped by their Battle.net token expiry and 24 hours, without sliding renewal. Officers administer membership and guild knowledge; only the GM changes account roles or transfers the GM role. The administrative CLI recovers only unlinked legacy passwords; linked accounts recover through Battle.net. Using provider tokens for game features is outside the authentication scope.
 
 Permissions gate actions, with persisted ownership or management relationships limiting the records each action can affect. Enforce both at the API. Organizer and quartermaster responsibilities are not additional account roles. Do not introduce assignment machinery until the corresponding feature needs it.
 

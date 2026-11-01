@@ -9,14 +9,13 @@ test('entry, registration, validation preservation, and pending guidance', async
   await page.goto('/');
   await expect(page).toHaveURL(/\/login$/);
   await page.getByRole('link', { name: 'Create an account' }).click();
+  await page.getByRole('button', { name: 'Continue with Battle.net', exact: true }).click();
   await page.getByLabel('Display name', { exact: true }).fill('Fern');
-  await page.getByLabel('Username', { exact: true }).fill('fern');
-  await page.getByLabel('Password', { exact: true }).fill('long-test-password');
+  await page.getByRole('checkbox').check();
   state.registerError = 409;
   await page.getByRole('button', { name: 'Request membership' }).click();
-  await expect(page.getByRole('alert')).toContainText('Username unavailable');
-  await expect(page.getByLabel('Username', { exact: true })).toHaveValue('fern');
-  await expect(page.getByLabel('Password', { exact: true })).toHaveValue('long-test-password');
+  await expect(page.getByRole('alert')).toContainText('Battle.net account already linked');
+  await expect(page.getByLabel('Display name', { exact: true })).toHaveValue('Fern');
   state.registerError = 429;
   await page.getByRole('button', { name: 'Request membership' }).click();
   await expect(page.getByRole('alert')).toContainText('Please wait');
@@ -33,13 +32,16 @@ test('login errors stay generic, preserve inputs, and reject external return URL
   const state = await mockApi(context);
   state.authError = true;
   await page.goto('/login?returnTo=https://example.com');
+  await page.getByRole('button', { name: 'Migrate existing account', exact: true }).click();
   await page.getByLabel('Username', { exact: true }).fill('river');
   await page.getByLabel('Password', { exact: true }).fill('valid-password');
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByRole('button', { name: 'Verify existing account', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Invalid username or password');
   await expect(page.getByLabel('Password', { exact: true })).toHaveValue('valid-password');
   state.authError = false;
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByRole('button', { name: 'Verify existing account', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Connect Battle.net' })).toBeVisible();
+  await page.getByRole('link', { name: 'Connect Battle.net', exact: true }).click();
   await expect(page).toHaveURL(/\/home$/);
 });
 
@@ -50,9 +52,7 @@ test('protected deep link returns after login; reload preserves session', async 
   const state = await mockApi(context);
   await page.goto('/events');
   await expect(page).toHaveURL(/\/login\?returnTo=/);
-  await page.getByLabel('Username', { exact: true }).fill('river');
-  await page.getByLabel('Password', { exact: true }).fill('valid-password');
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue with Battle.net', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Events', exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Events', exact: true })).toBeVisible();
@@ -240,8 +240,10 @@ for (const [path, heading] of [
     await page.goto(path);
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
     if (heading === 'Join Bluds') {
-      await expect(page.getByLabel('Display name', { exact: true })).toBeVisible();
-      await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('minlength', '12');
+      await expect(
+        page.getByRole('button', { name: 'Continue with Battle.net', exact: true })
+      ).toBeVisible();
+      await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
     }
   });
 }
@@ -258,3 +260,50 @@ test('trailing slash logout ends the session and member routes keep their identi
   await expect(page.getByRole('heading', { name: 'Log in', exact: true })).toBeVisible();
   expect(state.account).toBeNull();
 });
+
+for (const width of [320, 1280]) {
+  test(`Battle.net signup and migration work with keyboard at ${width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockApi(context);
+    await page.goto('/login');
+    await expect(
+      page.getByRole('button', { name: 'Continue with Battle.net', exact: true })
+    ).toBeEnabled();
+    await noOverflow(page);
+    await page.screenshot({
+      path: `../../docs/screenshots/issue55/login-${width}.png`,
+      fullPage: true,
+    });
+    const migration = page.getByRole('button', { name: 'Migrate existing account', exact: true });
+    await migration.focus();
+    await page.keyboard.press('Enter');
+    await page.getByLabel('Username', { exact: true }).fill('river');
+    await page.getByLabel('Password', { exact: true }).fill('synthetic-password');
+    await page.getByRole('button', { name: 'Verify existing account', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Connect Battle.net', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Log out', exact: true })).toHaveCount(0);
+    await noOverflow(page);
+    await page.screenshot({
+      path: `../../docs/screenshots/issue55/migration-${width}.png`,
+      fullPage: true,
+    });
+    await page.goto('/register/complete');
+    await page.getByLabel('Display name', { exact: true }).fill('Fern');
+    await expect(
+      page.getByRole('button', { name: 'Request membership', exact: true })
+    ).toBeDisabled();
+    await page.getByRole('checkbox').focus();
+    await page.keyboard.press('Space');
+    await expect(
+      page.getByRole('button', { name: 'Request membership', exact: true })
+    ).toBeEnabled();
+    await noOverflow(page);
+    await page.screenshot({
+      path: `../../docs/screenshots/issue55/signup-${width}.png`,
+      fullPage: true,
+    });
+  });
+}

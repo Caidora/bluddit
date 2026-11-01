@@ -5,6 +5,7 @@ import type { CurrentAccount } from '../app/features/auth/types';
 export const member: CurrentAccount = {
   id: 1,
   username: 'river',
+  battletag: null,
   display_name: 'River',
   membership_state: 'active',
   role_name: 'member',
@@ -65,15 +66,38 @@ export async function mockApi(context: BrowserContext, initial: CurrentAccount |
     if (path === '/api/auth/register') {
       if (state.registerError)
         return reply(state.registerError, {
-          detail: state.registerError === 409 ? 'Username unavailable' : 'Try again later',
+          detail:
+            state.registerError === 409 ? 'Battle.net account already linked' : 'Try again later',
         });
       return reply(201, state.target);
     }
+    if (path === '/api/auth/battlenet/registration') return reply(200, { battletag: 'Fern#1234' });
+    if (path === '/api/auth/battlenet/start') {
+      const registering = new URL(request.headers().referer).pathname
+        .toLowerCase()
+        .startsWith('/register');
+      return reply(200, {
+        authorization_url: `/api/test-battlenet/authorize?register=${registering ? '1' : '0'}&returnTo=${encodeURIComponent(body.return_to ?? '/home')}`,
+      });
+    }
+    if (path === '/api/test-battlenet/authorize') {
+      const registering = url.searchParams.get('register') === '1';
+      if (!registering) state.account = member;
+      return route.fulfill({
+        status: 302,
+        headers: {
+          location: registering
+            ? '/register/complete'
+            : `/auth/complete?returnTo=${encodeURIComponent(url.searchParams.get('returnTo') ?? '/home')}`,
+        },
+      });
+    }
     if (path === '/api/auth/login') {
-      expect(Object.keys(body).sort()).toEqual(['password', 'username']);
+      expect(Object.keys(body).sort()).toEqual(['password', 'return_to', 'username']);
       if (state.authError) return reply(401, { detail: 'Invalid username or password' });
-      state.account ??= member;
-      return reply(200, { access_token: 'access-login', expires_in: 600, token_type: 'Bearer' });
+      return reply(200, {
+        authorization_url: `/api/test-battlenet/authorize?returnTo=${encodeURIComponent(body.return_to ?? '/home')}`,
+      });
     }
     if (path === '/api/auth/token' && method === 'DELETE') {
       if (state.failLogout) return reply(503, { detail: 'Database unavailable' });
@@ -94,7 +118,8 @@ export async function mockApi(context: BrowserContext, initial: CurrentAccount |
       state.meCount++;
       return reply(state.account ? 200 : 401, state.account);
     }
-    if (path === '/api/events') return reply(200, { events: [], offset: 0, limit: 25, has_more: false });
+    if (path === '/api/events')
+      return reply(200, { events: [], offset: 0, limit: 25, has_more: false });
     if (path === '/api/accounts') {
       if (!state.account?.permissions.includes('accounts.manage')) return reply(403);
       return reply(200, {
@@ -133,11 +158,17 @@ export async function mockApi(context: BrowserContext, initial: CurrentAccount |
   });
   return state;
 }
-export async function login(page: Page, username = 'river', password = 'valid-password') {
+export async function login(page: Page, username = 'river', _password = 'valid-password') {
   await page.goto('/login');
-  await page.getByLabel('Username', { exact: true }).fill(username);
-  await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await page.getByRole('button', { name: 'Continue with Battle.net', exact: true }).click();
+  // The disposable real API serves a synthetic authorization page. Mocked APIs redirect directly.
+  if (username.startsWith('browser_')) {
+    await page
+      .getByRole('button', {
+        name: username === 'browser_gm' ? 'Authorize Browser GM' : 'Authorize Browser Member',
+      })
+      .click();
+  }
 }
 export async function noOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
