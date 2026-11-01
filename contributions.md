@@ -102,10 +102,15 @@ so run the Ruff commands explicitly.
   Include the appropriate lockfile whenever dependencies change.
 - Use explicit parameterized SQL and numbered migrations, with no ORM. Preserve
   existing data and document migration, compatibility, and recovery implications.
+- List SQL result columns explicitly. Never use `SELECT *`, `alias.*`, or
+  `RETURNING *`, including in views and migrations.
 - Bind SQL values by name, using placeholders such as `%(account_id)s` and a
   separate mapping such as `{"account_id": account_id}`. Do not use positional
   `%s` placeholders or positional parameter sequences. Let the driver bind values;
   never interpolate them with Python formatting or f-strings.
+  Write each query parameter explicitly in that mapping using the corresponding
+  model attribute or value; do not unpack models/dictionaries with `**`, pass a
+  whole `model_dump()`, or generate parameter names dynamically.
 - Name ID columns with the singular table/entity name in snake_case followed by
   `_id`: `accounts.account_id`, `sessions.session_id`, and
   `refresh_sessions.refresh_session_id`, never a bare `id`. Foreign-key ID columns

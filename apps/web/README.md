@@ -35,6 +35,7 @@ app/
   routes/                    Thin route modules that select a screen and its props
   features/
     accounts/                Membership list, details, controls, API, query options, types
+    bluds/                   Character directory, forms, progress, API and reference contracts
     auth/                    Account forms, session lifecycle, API contracts, query options
     permissions/             Permission matrix, API, query options, types
   components/                Shared page patterns, shell, session boundary
