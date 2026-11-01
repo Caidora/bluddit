@@ -22,11 +22,13 @@ import os
 from pathlib import Path
 
 stage = Path(os.environ["STAGE"])
-for name, variable in [("registry_token", "GH_TOKEN"), ("registry_actor", "GH_ACTOR"), ("postgres_password", "POSTGRES_PASSWORD"), ("battlenet_client_id", "BATTLE_NET_CLIENT_ID"), ("battlenet_client_secret", "BATTLE_NET_CLIENT_SECRET"), ("battlenet_token_encryption_key", "BATTLE_NET_TOKEN_ENCRYPTION_KEY")]:
+for name, variable in [("registry_token", "GH_TOKEN"), ("registry_actor", "GH_ACTOR"), ("postgres_password", "POSTGRES_PASSWORD"), ("battlenet_client_id", "BATTLE_NET_CLIENT_ID"), ("battlenet_client_secret", "BATTLE_NET_CLIENT_SECRET"), ("battlenet_token_encryption_key", "BATTLE_NET_TOKEN_ENCRYPTION_KEY"), ("blizzard_client_secret", "BLIZZARD_CLIENT_SECRET")]:
     (stage / name).write_text(os.environ.get(variable, ""))
 if os.environ.get("RELEASE_ID"):
     manifest = {key: os.environ[key] for key in ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE")}
     manifest["release_id"] = os.environ["RELEASE_ID"]
+    for key in ("BLIZZARD_CLIENT_ID", "BLIZZARD_REGION", "BLIZZARD_LOCALE", "BLIZZARD_STATIC_NAMESPACE"):
+        manifest[key] = os.environ.get(key, "")
     (stage / "manifest.json").write_text(json.dumps(manifest))
 PY
 tar -czf "$archive" -C "$stage" .

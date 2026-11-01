@@ -2,18 +2,22 @@ export type DungeonStatus = 'not_completed' | 'completed' | 'completed_rerun';
 export interface Choice {
   id: string;
   name: string;
+  active: boolean;
 }
 export interface References {
+  refreshing: boolean;
   version: string;
-  reviewed_on: string;
+  fetched_at: Record<string, string | null>;
   sources: { label: string; url: string }[];
   classes: (Choice & { specs: Choice[] })[];
-  professions: (Choice & { category: 'primary' | 'secondary'; max_level: number })[];
-  zones: Choice[];
+  professions: (Choice & {
+    category: 'primary' | 'secondary' | null;
+    max_level: number | null;
+  })[];
   dungeons: (Choice & {
-    location: string;
-    suggested_level_min: number;
-    suggested_level_max: number;
+    location: string | null;
+    suggested_level_min: number | null;
+    suggested_level_max: number | null;
     guide_url: string | null;
     quest_guide_url: string | null;
     source_urls: string[];
@@ -26,7 +30,6 @@ export interface BludContent {
   class_id: string;
   spec_id: string | null;
   character_created_on: string;
-  farming_zone_id: string | null;
 }
 export interface ProfessionInput {
   profession_id: string;
@@ -44,7 +47,6 @@ export interface Blud extends BludContent {
   created_at: string;
   updated_at: string;
   updated_by_account_id: number;
-  farming_zone_updated_at: string | null;
   professions: (ProfessionInput & { updated_at: string })[];
   dungeons: (DungeonInput & { updated_at: string })[];
   completed_dungeons: number;

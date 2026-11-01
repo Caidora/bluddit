@@ -1,1 +1,1 @@
-"""Reviewed reference declarations; never fetched during member requests."""
+"""Application data comes from the Blizzard reference service."""

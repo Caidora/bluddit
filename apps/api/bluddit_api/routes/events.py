@@ -4,7 +4,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
-from bluddit_api.data.bluds import DUNGEON_IDS, REFERENCES
 from bluddit_api.models.accounts import Account
 from bluddit_api.models.bluds import Choice
 from bluddit_api.models.events import (
@@ -24,7 +23,7 @@ from bluddit_api.repositories.events import (
     InvalidOrganizers,
 )
 from bluddit_api.utils.authorization import require_permission
-from bluddit_api.utils.dependencies import EventsRepositoryDep
+from bluddit_api.utils.dependencies import EventsRepositoryDep, ReferencesDep
 from bluddit_api.utils.event_times import TIMEZONES, preview_start, resolve_start
 from bluddit_api.utils.permissions import Permission, RolePolicy
 
@@ -49,16 +48,25 @@ ACTIVITIES = [
 ]
 
 
-def validate_destination(body: EventCreate | EventPatch):
-    if body.dungeon_id is not None and body.dungeon_id not in DUNGEON_IDS:
+def validate_destination(body: EventCreate | EventPatch, references, current=None):
+    active_ids = {d.id for d in references.dungeons if d.active}
+    unchanged = current is not None and body.dungeon_id == current.dungeon_id
+    if (
+        body.dungeon_id is not None
+        and body.dungeon_id not in active_ids
+        and not unchanged
+    ):
         raise HTTPException(422, "Choose a valid dungeon destination")
 
 
 @router.get("/reference-data")
-async def references(actor: Reader) -> EventReferences:
+async def references(actor: Reader, catalog: ReferencesDep) -> EventReferences:
     return EventReferences(
+        refreshing=catalog.refreshing,
         activities=ACTIVITIES,
-        dungeons=[Choice(id=d.id, name=d.name) for d in REFERENCES.dungeons],
+        dungeons=[
+            Choice(id=d.id, name=d.name, active=d.active) for d in catalog.dungeons
+        ],
         timezones=TIMEZONES,
     )
 
@@ -85,9 +93,12 @@ async def list_events(
 
 @router.post("", status_code=201)
 async def create(
-    body: EventCreate, actor: Creator, repository: EventsRepositoryDep
+    body: EventCreate,
+    actor: Creator,
+    repository: EventsRepositoryDep,
+    references: ReferencesDep,
 ) -> EventRecord:
-    validate_destination(body)
+    validate_destination(body, references)
     return await repository.create(body, resolve_start(body), actor.id)
 
 
@@ -126,9 +137,16 @@ async def manage(repository, event_id, actor, **operation) -> EventRecord:
 
 @router.patch("/{event_id}")
 async def update(
-    event_id: EventId, body: EventPatch, actor: Manager, repository: EventsRepositoryDep
+    event_id: EventId,
+    body: EventPatch,
+    actor: Manager,
+    repository: EventsRepositoryDep,
+    references: ReferencesDep,
 ) -> EventRecord:
-    validate_destination(body)
+    current = await repository.get(event_id)
+    if current is None:
+        raise HTTPException(404, "Event not found")
+    validate_destination(body, references, current)
     starts_at = None
     if "local_start" in body.model_fields_set:
         starts_at = resolve_start(

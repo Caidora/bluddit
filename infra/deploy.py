@@ -212,6 +212,19 @@ class Deployment:
             if not re.fullmatch(r"[a-z0-9./:_-]+@sha256:[a-f0-9]{64}", manifest[key]):
                 raise DeploymentError(f"{key} must use an immutable image digest")
         manifest["APP_ROOT"] = str(self.root)
+        defaults = {
+            "BLIZZARD_CLIENT_ID": "",
+            "BLIZZARD_REGION": "us",
+            "BLIZZARD_LOCALE": "en_US",
+            "BLIZZARD_STATIC_NAMESPACE": "static-1.60.1_70399-forever-us",
+        }
+        for key, default in defaults.items():
+            value = manifest.get(key) or default
+            if not isinstance(value, str) or (
+                value and not re.fullmatch(r"[A-Za-z0-9_.-]+", value)
+            ):
+                raise DeploymentError("Invalid Blizzard configuration")
+            manifest[key] = value
         password = (self.payload / "postgres_password").read_bytes()
         if not password or b"\n" in password or b"\r" in password:
             raise DeploymentError(
@@ -254,6 +267,15 @@ class Deployment:
         write_private(api_password, password.decode())
         os.chown(api_password, 10001, 10001)
         api_password.chmod(0o400)
+        provider_secret = self.payload / "blizzard_client_secret"
+        provider_target = self.shared / "blizzard_client_secret"
+        write_private(
+            provider_target,
+            provider_secret.read_text() if provider_secret.exists() else "",
+        )
+        os.chown(provider_target, 10001, 10001)
+        provider_target.chmod(0o400)
+
         for name in (
             "battlenet_client_id",
             "battlenet_client_secret",
@@ -304,6 +326,10 @@ class Deployment:
                     "DB_IMAGE",
                     "NGINX_IMAGE",
                     "APP_ROOT",
+                    "BLIZZARD_CLIENT_ID",
+                    "BLIZZARD_REGION",
+                    "BLIZZARD_LOCALE",
+                    "BLIZZARD_STATIC_NAMESPACE",
                 )
             )
             + f"AUTH_ALLOWED_ORIGINS=https://{self.domain}\n"

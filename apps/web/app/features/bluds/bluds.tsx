@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from '@/components/session';
@@ -15,6 +15,13 @@ import { bludsOptions, createOptions, referencesOptions } from './queries';
 export function Bluds() {
   const actor = useAccount();
   const [search, setSearch] = useSearchParams();
+  useEffect(() => {
+    if (search.has('farming_zone_id')) {
+      const clean = new URLSearchParams(search);
+      clean.delete('farming_zone_id');
+      setSearch(clean, { replace: true });
+    }
+  }, [search, setSearch]);
   const location = useLocation();
   const navigate = useNavigate();
   const references = useQuery(referencesOptions(actor.id));
@@ -61,6 +68,7 @@ export function Bluds() {
         </PageTitle>
         {actor.permissions.includes('bluds.edit_own') && !creating && (
           <Button
+            disabled={!refs.classes.some((c) => c.active)}
             onClick={() => {
               mutation.reset();
               setCreating(true);
@@ -70,6 +78,11 @@ export function Bluds() {
           </Button>
         )}
       </div>
+      {!refs.classes.some((c) => c.active) && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Character creation is unavailable until classes are available.
+        </p>
+      )}
       {creating && (
         <div className="mb-6">
           <BludForm
@@ -80,7 +93,9 @@ export function Bluds() {
             submit={(body) =>
               mutation.mutate(body, {
                 onSuccess: (blud) =>
-                  navigate(`/bluds/${blud.blud_id}`, { state: { listSearch: location.search } }),
+                  navigate(`/bluds/${blud.blud_id}`, {
+                    state: { listSearch: location.search },
+                  }),
               })
             }
           />
@@ -115,13 +130,6 @@ export function Bluds() {
             choices={refs.professions}
             empty="All professions"
             defaultValue={search.get('profession_id') ?? ''}
-          />
-          <SelectField
-            label="Farming zone filter"
-            name="farming_zone_id"
-            choices={refs.zones}
-            empty="All zones"
-            defaultValue={search.get('farming_zone_id') ?? ''}
           />
           <SelectField
             label="Dungeon filter"
@@ -237,9 +245,6 @@ export function Bluds() {
                         )}
                       </div>
                       <div>
-                        <h3 className="mb-1 font-medium">Farming zone</h3>
-                        <p>{choiceName(refs.zones, blud.farming_zone_id)}</p>
-                        <UpdatedAt value={blud.farming_zone_updated_at} />
                         <p className="mt-2 text-muted-foreground">
                           {blud.rerun_dungeons} completed{' '}
                           {blud.rerun_dungeons === 1 ? 'dungeon' : 'dungeons'} wanted again

@@ -7,9 +7,13 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import psycopg
+import httpx
 from psycopg_pool import PoolTimeout
 
 from bluddit_api.database import Database, DatabaseSettings
+from bluddit_api.repositories.references import ReferencesRepository
+from bluddit_api.services.blizzard import BlizzardClient, BlizzardSettings
+from bluddit_api.services.references import ReferencesService
 from bluddit_api.migrate import load_migrations
 from bluddit_api.routes.bluds import router as bluds_router
 from bluddit_api.routes.events import router as events_router
@@ -37,6 +41,7 @@ def create_app() -> FastAPI:
     if not any(isinstance(item, CallbackLogFilter) for item in access_logger.filters):
         access_logger.addFilter(CallbackLogFilter())
     migrations = load_migrations()
+    blizzard_settings = BlizzardSettings.from_env()
 
     @asynccontextmanager
     async def lifespan(app):
@@ -46,7 +51,23 @@ def create_app() -> FastAPI:
             # Don't wait for connectivity: liveness remains available during DB outages.
             await database.pool.open(wait=False)
         try:
-            yield
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(10, connect=3), follow_redirects=False
+            ) as http:
+                app.state.references = (
+                    ReferencesService(
+                        BlizzardClient(
+                            blizzard_settings, ReferencesRepository(database), http
+                        )
+                    )
+                    if database
+                    else None
+                )
+                try:
+                    yield
+                finally:
+                    if app.state.references:
+                        await app.state.references.close()
         finally:
             if database:
                 await database.pool.close()

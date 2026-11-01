@@ -2,12 +2,13 @@
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request, HTTPException
 
 from bluddit_api.repositories.bluds import BludsRepository
 from bluddit_api.repositories.oauth import OAuthRepository
 from bluddit_api.repositories.events import EventsRepository
 
+from bluddit_api.models.bluds import BludReferenceData
 from bluddit_api.database import Database, get_database, get_optional_database
 from bluddit_api.repositories.handbook import HandbookRepository
 from bluddit_api.repositories.auth import AuthRepository
@@ -67,6 +68,15 @@ async def get_events_repository(
 
 
 EventsRepositoryDep = Annotated[EventsRepository, Depends(get_events_repository)]
+
+
+async def get_reference_data(request: Request) -> BludReferenceData:
+    if request.app.state.references is None:
+        raise HTTPException(503, "Database unavailable")
+    return await request.app.state.references.snapshot()
+
+
+ReferencesDep = Annotated[BludReferenceData, Depends(get_reference_data)]
 
 
 async def get_oauth_repository(

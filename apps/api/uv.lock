@@ -84,7 +84,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
 ]
 
@@ -101,10 +100,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "pytest", specifier = "==9.2.0" },
-]
+dev = [{ name = "pytest", specifier = "==9.2.0" }]
 
 [[package]]
 name = "certifi"

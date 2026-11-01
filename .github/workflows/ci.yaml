@@ -166,6 +166,8 @@ jobs:
           printf '%s' 'ci-disposable-password' > "$APP_ROOT/shared/postgres_password"
           cp "$APP_ROOT/shared/postgres_password" "$APP_ROOT/shared/api_postgres_password"
           chmod 0444 "$APP_ROOT/shared/api_postgres_password"
+          touch "$APP_ROOT/shared/blizzard_client_secret"
+          chmod 0444 "$APP_ROOT/shared/blizzard_client_secret"
           printf '%s' 'synthetic-client' > "$APP_ROOT/shared/battlenet_client_id"
           printf '%s' 'synthetic-secret' > "$APP_ROOT/shared/battlenet_client_secret"
           python3 -c 'import base64; print(base64.urlsafe_b64encode(b"x" * 32).decode(), end="")' > "$APP_ROOT/shared/battlenet_token_encryption_key"
@@ -229,6 +231,11 @@ jobs:
       APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
       TLS_EMAIL: ${{ secrets.TLS_EMAIL }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+      BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'us' }}
+      BLIZZARD_LOCALE: ${{ vars.BLIZZARD_LOCALE || 'en_US' }}
+      BLIZZARD_STATIC_NAMESPACE: ${{ vars.BLIZZARD_STATIC_NAMESPACE || 'static-1.60.1_70399-forever-us' }}
       BATTLE_NET_CLIENT_ID: ${{ secrets.BATTLE_NET_CLIENT_ID }}
       BATTLE_NET_CLIENT_SECRET: ${{ secrets.BATTLE_NET_CLIENT_SECRET }}
       BATTLE_NET_TOKEN_ENCRYPTION_KEY: ${{ secrets.BATTLE_NET_TOKEN_ENCRYPTION_KEY }}

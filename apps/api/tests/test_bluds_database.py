@@ -6,6 +6,8 @@ from httpx import ASGITransport, AsyncClient
 import pytest
 
 from bluddit_api.main import create_app
+from bluddit_api.utils.dependencies import get_reference_data
+from reference_data import REFERENCES
 from bluddit_api.migrate import run_migrations
 from bluddit_api.utils.security import new_token
 
@@ -36,6 +38,8 @@ async def bluds(database, monkeypatch):
         tokens[username] = {"Authorization": "Bearer " + token}
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://test")
     app = create_app()
+    app.dependency_overrides[get_reference_data] = lambda: REFERENCES
+
     app.state.battlenet_client = FakeBattleNetClient()
     async with (
         app.router.lifespan_context(app),
@@ -66,12 +70,11 @@ async def test_creation_simple_partial_updates_progress_and_timestamps(bluds):
     assert first["account_id"] == ids["member"]
     assert first["character_created_on"] == "2026-10-28"
     assert first["professions"] == [] and first["dungeons"] == []
-    assert first["spec_id"] is None and first["farming_zone_updated_at"] is None
+    assert first["spec_id"] is None and "farming_zone_id" not in first
     assert first["completed_dungeons"] == 0 and first["total_dungeons"] == 35
     path = f"/api/bluds/{first['blud_id']}"
     body = {
         "spec_id": "mage-frost",
-        "farming_zone_id": "riverglades",
         "professions": [
             {"profession_id": "mining", "level": 100},
             {"profession_id": "alchemy", "level": None},
@@ -85,10 +88,8 @@ async def test_creation_simple_partial_updates_progress_and_timestamps(bluds):
     assert response.status_code == 200, response.text
     saved = response.json()
     assert saved["completed_dungeons"] == 1
-    zone_time = saved["farming_zone_updated_at"]
     prof_times = {p["profession_id"]: p["updated_at"] for p in saved["professions"]}
     unchanged = (await client.patch(path, json=body, headers=tokens["member"])).json()
-    assert unchanged["farming_zone_updated_at"] == zone_time
     assert {
         p["profession_id"]: p["updated_at"] for p in unchanged["professions"]
     } == prof_times
@@ -99,7 +100,6 @@ async def test_creation_simple_partial_updates_progress_and_timestamps(bluds):
     assert (
         changed["name"] == "Renamed" and changed["professions"] == saved["professions"]
     )
-    assert changed["farming_zone_updated_at"] == zone_time
     body["professions"][0]["level"] = 101
     changed = (
         await client.patch(
@@ -122,13 +122,6 @@ async def test_creation_simple_partial_updates_progress_and_timestamps(bluds):
         )
         == prof_times["cooking"]
     )
-    assert changed["farming_zone_updated_at"] == zone_time
-    changed = (
-        await client.patch(
-            path, json={"farming_zone_id": "westfall"}, headers=tokens["member"]
-        )
-    ).json()
-    assert changed["farming_zone_updated_at"] > zone_time
     for status, completed, reruns in [
         ("completed_rerun", 1, 1),
         ("not_completed", 0, 0),
@@ -158,15 +151,11 @@ async def test_creation_simple_partial_updates_progress_and_timestamps(bluds):
     cleared = (
         await client.patch(
             path,
-            json={"professions": [], "farming_zone_id": None, "spec_id": None},
+            json={"professions": [], "spec_id": None},
             headers=tokens["member"],
         )
     ).json()
-    assert (
-        cleared["professions"] == []
-        and cleared["farming_zone_id"] is None
-        and cleared["spec_id"] is None
-    )
+    assert cleared["professions"] == [] and cleared["spec_id"] is None
     assert (await client.get(path, headers=tokens["other"])).json() == cleared
 
 
@@ -179,14 +168,13 @@ async def test_directory_filters_pagination_and_archiving(bluds):
         path,
         headers=tokens["member"],
         json={
-            "farming_zone_id": "westfall",
             "professions": [{"profession_id": "mining", "level": 100}],
             "dungeons": [{"dungeon_id": "ragefire-chasm", "status": "completed_rerun"}],
         },
     )
     for query in [
         "q=ALPHA",
-        "q=member&mine=true&class_id=mage&profession_id=mining&farming_zone_id=westfall&dungeon_id=ragefire-chasm&dungeon_status=completed_rerun",
+        "q=member&mine=true&class_id=mage&profession_id=mining&dungeon_id=ragefire-chasm&dungeon_status=completed_rerun",
     ]:
         result = (
             await client.get("/api/bluds?" + query, headers=tokens["member"])
@@ -303,3 +291,54 @@ async def test_changing_class_checks_existing_spec_and_simple_updates_need_no_re
     assert (await client.get(path, headers=tokens["member"])).json()[
         "name"
     ] == "Last save"
+
+
+async def test_removed_zones_reject_input_and_preserve_stored_values(bluds):
+    client, database, _, tokens = bluds
+    record = await create(client, tokens)
+    path = f"/api/bluds/{record['blud_id']}"
+    async with database.transaction() as connection:
+        await connection.execute(
+            """UPDATE bluds SET farming_zone_id = 'legacy-zone',
+            farming_zone_updated_at = '2026-01-01T00:00:00Z'
+            WHERE blud_id = %(blud_id)s""",
+            {"blud_id": record["blud_id"]},
+        )
+    assert (
+        await client.patch(
+            path, json={"farming_zone_id": None}, headers=tokens["member"]
+        )
+    ).status_code == 422
+    assert (
+        await client.get(
+            "/api/bluds?farming_zone_id=legacy-zone", headers=tokens["member"]
+        )
+    ).status_code == 422
+    assert (
+        await client.post(
+            "/api/bluds",
+            json={**CONTENT, "farming_zone_id": "legacy-zone"},
+            headers=tokens["member"],
+        )
+    ).status_code == 422
+    updated = await client.patch(
+        path, json={"name": "Renamed"}, headers=tokens["member"]
+    )
+    assert updated.status_code == 200
+    assert "farming_zone_id" not in updated.json()
+    assert (
+        "zones"
+        not in (
+            await client.get("/api/bluds/reference-data", headers=tokens["member"])
+        ).json()
+    )
+    async with database.transaction() as connection:
+        cursor = await connection.execute(
+            """SELECT farming_zone_id, farming_zone_updated_at FROM bluds
+            WHERE blud_id = %(blud_id)s""",
+            {"blud_id": record["blud_id"]},
+        )
+        zone, updated_at = await cursor.fetchone()
+    assert (
+        zone == "legacy-zone" and updated_at.isoformat() == "2026-01-01T00:00:00+00:00"
+    )

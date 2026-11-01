@@ -10,7 +10,8 @@ export const referencesOptions = (actor: number) =>
   queryOptions({
     queryKey: ['member', actor, 'bluds', 'references'],
     queryFn: ({ signal }) => bludsApi.references(signal),
-    staleTime: Infinity,
+    staleTime: 60 * 60 * 1000,
+    refetchInterval: (query) => (query.state.data?.refreshing ? 2000 : 60 * 60 * 1000),
   });
 export const bludsOptions = (actor: number, search: string) =>
   queryOptions({
