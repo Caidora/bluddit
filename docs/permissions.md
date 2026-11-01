@@ -22,10 +22,14 @@ state on every request; pending, rejected, and inactive accounts have no access.
 | Create Blud | `bluds.edit_own` | Owner is always the caller |
 | Edit/archive/restore own Blud | `bluds.view` + `bluds.edit_own` | Persisted `account_id` matches caller; ownership cannot change |
 | Correct/edit/archive/restore another member’s Blud | `bluds.view` + `shared_records.correct` | Explicit officer correction controls; last modifier attributed by the server |
+| Read events/references | `guild.read` | Active membership; scheduled and cancelled records are readable |
+| Create event / preview scheduling | `events.create` | Active member; creator assignment established atomically |
+| Edit/cancel event | `events.manage` | Current event organizer assignment, or explicit Officer/GM `shared_records.correct` bypass; cancelled events reject edits |
+| Replace event organizers | `shared_records.correct` | Officer/GM only; distinct active accounts, nonempty assignment set, scheduled event |
 | Pass GM | `accounts.manage` | Current active GM → different active account; atomic succession |
 
 Members have `guild.read`, `bluds.view`, `bluds.edit_own`, `profile.edit_own`, `characters.edit_own`,
-`wishlist.edit_own`, and `signups.edit_own`. Officers inherit those permissions
+`wishlist.edit_own`, `signups.edit_own`, `events.create`, and `events.manage`. Officers inherit those permissions
 and add `accounts.manage`, `policy.read`, `handbook.edit`, and
 `shared_records.correct`. The GM also has `handbook.delete`. Role changes additionally require the actor
 to be the current GM. The API checks this at the endpoint gate. Ordinary permission
@@ -57,10 +61,9 @@ Never accept a client-supplied owner/manager ID as proof of authority.
 
 | Future action | Permission gate | Required resource/state check |
 | --- | --- | --- |
-| Read future guild profiles, wishlists, events, directory | `guild.read` | Active membership; resource visibility/state |
+| Read future guild profiles, wishlists, directory | `guild.read` | Active membership; resource visibility/state |
 | Edit profile/characters/wishlist/signups | Corresponding `*.edit_own` | Ownership through persisted account/character relationships; feature-specific state validation |
-| Manage an event/roster | Add the action permission with that feature | Persisted manager assignment for that exact resource, plus allowed state |
-| Create an event | Add the action permission with events | Validate creation and establish creator's manager relationship atomically |
+| Manage a future event roster | `events.manage` | Persisted assignment to that exact event, or documented officer bypass; allowed state and roster constraints |
 | Maintain routing/crafter assignments | Add the action permission with directory maintenance | Persisted quartermaster responsibility and its defined scope |
 | Correct shared records / assign managers | `shared_records.correct` | Explicit Officer/GM action, existing target, and all record-validity constraints |
 
@@ -81,3 +84,7 @@ writes, including changed relationships during concurrent updates. Duty removal
 and membership/role changes must affect subsequent requests without waiting for
 token expiry. Current membership tests cover concrete account/role restrictions;
 resource-specific tests belong with the features that introduce those resources.
+
+Events lock the event before checking current assignments and writing. Organizer
+removal therefore affects edits queued behind that lock. Assignment updates use
+the same lock. See [Events](events.md) for the concrete API and section 12 contract.

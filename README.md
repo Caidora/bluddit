@@ -10,7 +10,8 @@ As of 1 November 2026, Release 1 is in development.
 
 - **Available:** the application foundation and production deployment, database migrations, session login/logout, registration and membership approval, account administration, permissions, and the guild handbook with officer editing and revision history.
 - **Merged:** the Bluds directory, character details, professions, farming zones, and dungeon completion tracking are now included on `main`. Production acceptance is recorded separately from implementation.
-- **Planned:** events, personal gear wishlists, material routing and the crafter directory, a useful member home page, and expanded database snapshot/recovery support.
+- **Implemented locally:** event creation, editing, cancellation, organizer assignments, and timezone-aware scheduling (issue #20 section 11); production acceptance remains pending.
+- **Planned:** event signups and roster management, personal gear wishlists, material routing and the crafter directory, a useful member home page, and expanded database snapshot/recovery support.
 
 The full Release 1 experience is not complete. Some member pages are still placeholders; their presence in navigation does not mean the feature is available. Implementation, review, and production verification are separate steps.
 
@@ -130,5 +131,6 @@ Docker Compose runs the stack locally and on the existing Hetzner server. GitHub
 - [Feature plan](website-feature-plan.md): Release 1 behavior and scope boundaries.
 - [High-level plan](high-level-plan.md): guild purpose, product direction, and architecture.
 - [Web architecture](apps/web/README.md): frontend organization, API calls, caching, and session handling.
+- [Events behavior and API](docs/events.md): organizer permissions, scheduling, cancellation, and section 12 boundaries.
 - [Bluds behavior and scope](docs/bluds.md): character ownership, progress, search, and reference data.
 - [Permission policy](docs/permissions.md): current access gates and resource authorization conventions.

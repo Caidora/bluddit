@@ -16,6 +16,9 @@ export default [
         route('bluds', 'routes/bluds.tsx'),
         route('bluds/:bludId', 'routes/blud.tsx'),
       ]),
+      route('events/new', 'routes/event-new.tsx'),
+      route('events/:eventId', 'routes/event.tsx'),
+      route('events/:eventId/edit', 'routes/event-edit.tsx'),
       route('handbook/:slug', 'routes/handbook-section.tsx'),
       layout('routes/membership-gate.tsx', [
         route('admin/accounts', 'routes/accounts.tsx'),

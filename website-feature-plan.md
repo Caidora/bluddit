@@ -28,7 +28,7 @@ Profiles/timezones, main/alt constraints, race/current level, composition summar
 
 Any active member can create an activity. Use a general event with optional fields such as destination, maximum group size, and expected duration, rather than requiring a separate model for every activity. Support dungeon runs, leveling, questing, PvP, and guild meetings; raid-specific support is deferred.
 
-Store one authoritative start instant and show a clearly labelled time in the viewer’s timezone. Handle daylight-saving transitions and date changes across Auckland, Sydney, and Perth. Members can sign up with a character and role, change availability, or withdraw. Availability and organizer-assigned confirmed/standby status are separate; one member has one signup per event. Event managers maintain the event and roster through explicit resource authorization. Validate optional capacity and role limits where supplied.
+Store one authoritative start instant and show a clearly labelled time in the viewer’s timezone. Handle daylight-saving transitions and date changes across Auckland, Sydney, and Perth. Members can sign up with a character and role, change availability, or withdraw. Availability and organizer-assigned confirmed/standby status are separate; one member has one signup per event. Event managers maintain the event and roster through explicit resource authorization. Validate optional capacity where supplied. Section 11 delivers scheduling and event management; signups, roster management, and optional role limits follow in section 12.
 
 Do not make event creation depend on deferred squads or guild farming rankings. Precise timezone handling belongs to the scheduling workflow; it does not require the broader deferred member-profile feature.
 
