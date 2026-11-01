@@ -21,6 +21,8 @@ class Permission(StrEnum):
     PROFILE_EDIT_OWN = "profile.edit_own"
     CHARACTERS_EDIT_OWN = "characters.edit_own"
     WISHLIST_EDIT_OWN = "wishlist.edit_own"
+    EVENTS_CREATE = "events.create"
+    EVENTS_MANAGE = "events.manage"
     SIGNUPS_EDIT_OWN = "signups.edit_own"
     ACCOUNTS_MANAGE = "accounts.manage"
     HANDBOOK_EDIT = "handbook.edit"
@@ -38,6 +40,8 @@ _MEMBER = frozenset(
         Permission.CHARACTERS_EDIT_OWN,
         Permission.WISHLIST_EDIT_OWN,
         Permission.SIGNUPS_EDIT_OWN,
+        Permission.EVENTS_CREATE,
+        Permission.EVENTS_MANAGE,
     }
 )
 _OFFICER = _MEMBER | frozenset(

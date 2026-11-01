@@ -11,6 +11,7 @@ from psycopg_pool import PoolTimeout
 from bluddit_api.database import Database, DatabaseSettings
 from bluddit_api.migrate import load_migrations
 from bluddit_api.routes.bluds import router as bluds_router
+from bluddit_api.routes.events import router as events_router
 from bluddit_api.routes.auth import router as auth_router
 from bluddit_api.routes.handbook import router as handbook_router
 from bluddit_api.routes.health import router as health_router
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router)
     app.include_router(handbook_router)
     app.include_router(bluds_router)
+    app.include_router(events_router)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):

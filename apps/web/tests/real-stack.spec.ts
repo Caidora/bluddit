@@ -79,6 +79,40 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await expect(page.getByRole('region', { name: 'Professions', exact: true })).toContainText(
       'Mining · 75'
     );
+    // Events persist member scheduling and officer-only organizer assignments.
+    await page.goto('/events/new');
+    await page.getByLabel('Title', { exact: true }).fill('Browser member event');
+    await page
+      .getByRole('combobox', { name: 'Scheduling timezone', exact: true })
+      .selectOption('Australia/Perth');
+    await page.getByLabel('Local start date and time').fill('2090-11-01T19:00');
+    await page.getByRole('button', { name: 'Create event', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Browser member event' })).toBeVisible();
+    const eventPath = new URL(page.url()).pathname;
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Browser member event' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Organizer assignments' })).toHaveCount(0);
+    await admin.goto(eventPath);
+    await admin.getByRole('checkbox', { name: 'Browser GM (browser_gm)' }).check();
+    await admin.getByRole('button', { name: 'Save organizers' }).click();
+    await expect(admin.getByRole('region', { name: 'Event details' })).toContainText(
+      'Browser GM'
+    );
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Event details' })).toContainText(
+      'Browser GM'
+    );
+    await page.getByRole('link', { name: 'Edit event', exact: true }).click();
+    await page.getByLabel('Title', { exact: true }).fill('Updated member event');
+    await page.getByRole('button', { name: 'Save event', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Updated member event' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel event', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm cancellation' }).click();
+    await expect(
+      page
+        .getByRole('region', { name: 'Event details' })
+        .getByText('Cancelled', { exact: true })
+    ).toBeVisible();
     await page.getByRole('link', { name: 'Log out', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
     await page.reload();

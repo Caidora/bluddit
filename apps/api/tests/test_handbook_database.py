@@ -398,10 +398,16 @@ async def test_deletion_migration_preserves_existing_handbook(database, tmp_path
         author_id = (await cursor.fetchone())[0]
     repository = HandbookRepository(database)
     before = await repository.create(HandbookCreate(**CONTENT), author_id)
+    shutil.copyfile(
+        MIGRATIONS / "0006_handbook_section_deletion.sql",
+        tmp_path / "0006_handbook_section_deletion.sql",
+    )
     async with database.pool.connection() as connection:
-        result = await run_migrations(connection, apply=True)
+        result = await run_migrations(connection, apply=True, directory=tmp_path)
         assert result["applied"] == ["0006_handbook_section_deletion.sql"]
-        assert (await run_migrations(connection, apply=True))["applied"] == []
+        assert (await run_migrations(connection, apply=True, directory=tmp_path))[
+            "applied"
+        ] == []
     assert await repository.get_section(CONTENT["slug"]) == before
     assert await repository.revisions(CONTENT["slug"], 10, 0) == [before]
     assert await repository.delete(CONTENT["slug"], 1)

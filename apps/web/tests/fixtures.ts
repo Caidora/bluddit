@@ -9,7 +9,7 @@ export const member: CurrentAccount = {
   membership_state: 'active',
   role_name: 'member',
   timezone: null,
-  permissions: ['guild.read', 'bluds.view', 'bluds.edit_own'],
+  permissions: ['guild.read', 'bluds.view', 'bluds.edit_own', 'events.create', 'events.manage'],
 };
 export const applicant: Account = {
   ...member,
@@ -26,6 +26,8 @@ export function officer(role: Role = 'officer'): CurrentAccount {
       'guild.read',
       'bluds.view',
       'bluds.edit_own',
+      'events.create',
+      'events.manage',
       'accounts.manage',
       'policy.read',
       'handbook.edit',
@@ -92,6 +94,7 @@ export async function mockApi(context: BrowserContext, initial: CurrentAccount |
       state.meCount++;
       return reply(state.account ? 200 : 401, state.account);
     }
+    if (path === '/api/events') return reply(200, { events: [], offset: 0, limit: 25, has_more: false });
     if (path === '/api/accounts') {
       if (!state.account?.permissions.includes('accounts.manage')) return reply(403);
       return reply(200, {
