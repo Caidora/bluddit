@@ -8,7 +8,8 @@ export const referencesOptions = (actor: number) =>
   queryOptions({
     queryKey: [...eventKeys.all(actor), 'references'],
     queryFn: ({ signal }) => eventsApi.references(signal),
-    staleTime: Infinity,
+    staleTime: 60 * 60 * 1000,
+    refetchInterval: (query) => (query.state.data?.refreshing ? 2000 : 60 * 60 * 1000),
   });
 export const listOptions = (actor: number, search: string) =>
   queryOptions({

@@ -48,7 +48,7 @@ server-controlled.
 | Endpoint | Behavior |
 | --- | --- |
 | `GET /api/events` | `period=upcoming|past|all`, `state=scheduled|cancelled|all`, `mine`, `limit`, `offset`; ascending start instant/event ID; defaults upcoming/scheduled |
-| `GET /api/events/reference-data` | Activity choices, existing dungeon IDs/names, supported timezone names |
+| `GET /api/events/reference-data` | Activity choices, dungeon IDs/names/active flags, refresh-in-progress flag, supported timezone names |
 | `POST /api/events/preview-start` | `valid`, `ambiguous`, or `nonexistent`, with candidate instants/offsets |
 | `POST /api/events` | Create and assign the caller; returns 201 |
 | `GET /api/events/{event_id}` | Read scheduled or cancelled event |
@@ -101,3 +101,9 @@ acceptance remain pending.
 
 Issue #20 remains open for section 12. Review/merge, production migration/deployment,
 and dedicated-record production acceptance remain outstanding.
+
+Dungeon destinations use the shared Blizzard reference service described in
+[Bluds](bluds.md). Only active dungeons can be newly selected. An existing retired
+destination remains visible and can be kept or cleared when editing. An empty
+Blizzard dungeon catalog leaves the destination optional; event scheduling still
+works. No stale-data notice is shown during provider outages.

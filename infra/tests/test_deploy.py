@@ -197,6 +197,9 @@ class DeploymentTests(unittest.TestCase):
 
     def test_successful_stage_prepares_non_root_api_secret(self):
         manifest = self.prepare_stage()
+        manifest["BLIZZARD_CLIENT_ID"] = "synthetic-client"
+        (self.payload / "manifest.json").write_text(json.dumps(manifest))
+        (self.payload / "blizzard_client_secret").write_text("synthetic-secret")
         for relative in (
             "compose.production.yaml",
             "deploy.py",
@@ -216,7 +219,11 @@ class DeploymentTests(unittest.TestCase):
             )
             release = self.operation.stage()
         api_password = self.operation.shared / "api_postgres_password"
-        chown.assert_called_once_with(api_password, 10001, 10001)
+        chown.assert_any_call(api_password, 10001, 10001)
+        provider_secret = self.operation.shared / "blizzard_client_secret"
+        chown.assert_any_call(provider_secret, 10001, 10001)
+        self.assertEqual(provider_secret.read_text(), "synthetic-secret")
+        self.assertEqual(provider_secret.stat().st_mode & 0o777, 0o400)
         self.assertEqual(api_password.read_text(), "test-password")
         self.assertEqual(api_password.stat().st_mode & 0o777, 0o400)
         self.assertEqual(
@@ -227,6 +234,12 @@ class DeploymentTests(unittest.TestCase):
             "AUTH_ALLOWED_ORIGINS=https://example.com\n",
             (release / "release.env").read_text(),
         )
+        self.assertIn(
+            "BLIZZARD_CLIENT_ID=synthetic-client\n",
+            (release / "release.env").read_text(),
+        )
+        self.assertNotIn("synthetic-secret", (release / "release.env").read_text())
+        self.assertNotIn("synthetic-secret", (release / "manifest.json").read_text())
         self.assertFalse((self.root / "current").exists())
 
     def test_database_password_cannot_be_silently_rotated(self):

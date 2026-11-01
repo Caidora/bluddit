@@ -25,7 +25,7 @@ import type { Blud, BludPatch, DungeonStatus, ProfessionInput, References } from
 
 function ProfessionForm({
   blud,
-  references,
+  references: currentReferences,
   pending,
   error,
   save,
@@ -38,12 +38,14 @@ function ProfessionForm({
   save: (body: BludPatch) => void;
   cancel: () => void;
 }) {
+  const [references] = useState(currentReferences);
   const [professions, setProfessions] = useState<ProfessionInput[]>(() =>
     blud.professions.map(({ profession_id, level }) => ({ profession_id, level }))
   );
   const primaryCount = professions.filter(
     (item) =>
-      references.professions.find((ref) => ref.id === item.profession_id)?.category === 'primary'
+      references.professions.find((ref) => ref.id === item.profession_id)?.category ===
+      'primary'
   ).length;
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -56,11 +58,17 @@ function ProfessionForm({
         Choose up to {references.max_primary_professions} primary professions and any secondary
         professions. Leave unknown levels blank.
       </p>
-      {(['primary', 'secondary'] as const).map((category) => (
-        <fieldset key={category} className="min-w-0 space-y-3">
-          <legend className="mb-3 font-medium capitalize">{category} professions</legend>
+      {(['primary', 'secondary', null] as const).map((category) => (
+        <fieldset key={category ?? 'unknown'} className="min-w-0 space-y-3">
+          <legend className="mb-3 font-medium capitalize">
+            {category ?? 'Unclassified'} professions
+          </legend>
           {references.professions
-            .filter((item) => item.category === category)
+            .filter(
+              (item) =>
+                item.category === category &&
+                (item.active || professions.some((p) => p.profession_id === item.id))
+            )
             .map((reference) => {
               const assigned = professions.find((item) => item.profession_id === reference.id);
               return (
@@ -74,6 +82,7 @@ function ProfessionForm({
                       checked={!!assigned}
                       disabled={
                         pending ||
+                        (!assigned && (!reference.active || reference.category === null)) ||
                         (!assigned &&
                           category === 'primary' &&
                           primaryCount >= references.max_primary_professions)
@@ -87,14 +96,17 @@ function ProfessionForm({
                       }
                     />
                     {reference.name}
+                    {!reference.active || reference.category === null ? ' (unavailable)' : ''}
                   </label>
                   <Input
                     type="number"
                     aria-label={`${reference.name} level`}
                     min={0}
-                    max={reference.max_level}
+                    max={reference.max_level ?? undefined}
                     step={1}
-                    disabled={!assigned || pending}
+                    disabled={
+                      !assigned || pending || !reference.active || reference.category === null
+                    }
                     value={assigned?.level ?? ''}
                     placeholder="Level"
                     onChange={(event) =>
@@ -136,6 +148,8 @@ function DungeonRow({
   editable,
   pending,
   save,
+  draft,
+  setDraft,
 }: {
   dungeon: References['dungeons'][number];
   blud: Blud;
@@ -143,18 +157,21 @@ function DungeonRow({
   editable: boolean;
   pending: boolean;
   save: (body: BludPatch, done: () => void) => void;
+  draft: DungeonStatus | undefined;
+  setDraft: (status: DungeonStatus | undefined) => void;
 }) {
   const progress = blud.dungeons.find((item) => item.dungeon_id === dungeon.id);
   const status = progress?.status ?? 'not_completed';
-  const [draft, setDraft] = useState<DungeonStatus | null>(null);
   return (
     <li className="min-w-0 space-y-3 border-t py-4 first:border-t-0">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="break-words font-medium">{dungeon.name}</h3>
           <p className="text-sm text-muted-foreground">
-            Suggested levels {dungeon.suggested_level_min}–{dungeon.suggested_level_max} ·{' '}
-            {dungeon.location}
+            {dungeon.suggested_level_min != null && dungeon.suggested_level_max != null
+              ? `Suggested levels ${dungeon.suggested_level_min}–${dungeon.suggested_level_max}`
+              : 'Levels unknown'}
+            {dungeon.location ? ` · ${dungeon.location}` : ''}
           </p>
         </div>
         <Badge
@@ -187,13 +204,13 @@ function DungeonRow({
         )}
         <UpdatedAt value={progress?.updated_at ?? null} />
       </div>
-      {editable && (
+      {editable && (dungeon.active || progress) && (
         <form
           className="flex min-w-0 flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             save({ dungeons: [{ dungeon_id: dungeon.id, status: draft ?? status }] }, () =>
-              setDraft(null)
+              setDraft(undefined)
             );
           }}
         >
@@ -204,17 +221,22 @@ function DungeonRow({
             onChange={(event) => setDraft(event.target.value as DungeonStatus)}
             className="h-10 min-w-0 max-w-full flex-1 rounded-md border bg-background px-2 text-sm sm:flex-none"
           >
-            {references.dungeon_statuses.map((choice) => (
-              <option key={choice.id} value={choice.id}>
-                {choice.name}
-              </option>
-            ))}
+            {references.dungeon_statuses
+              .filter(
+                (choice) =>
+                  dungeon.active || choice.id === status || choice.id === 'not_completed'
+              )
+              .map((choice) => (
+                <option key={choice.id} value={choice.id}>
+                  {choice.name}
+                </option>
+              ))}
           </select>
           <Button
             size="sm"
             variant="outline"
             type="submit"
-            disabled={pending || draft === null || draft === status}
+            disabled={pending || draft === undefined || draft === status}
           >
             Save<span className="sr-only"> {dungeon.name} status</span>
           </Button>
@@ -242,6 +264,19 @@ export function BludDetails() {
   const [correcting, setCorrecting] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [message, setMessage] = useState('');
+  const [dungeonDrafts, setDungeonDrafts] = useState<Record<string, DungeonStatus>>({});
+  function draftFor(dungeonId: string) {
+    return {
+      draft: dungeonDrafts[dungeonId],
+      setDraft: (status: DungeonStatus | undefined) =>
+        setDungeonDrafts((current) => {
+          const next = { ...current };
+          if (status === undefined) delete next[dungeonId];
+          else next[dungeonId] = status;
+          return next;
+        }),
+    };
+  }
   function save(body: BludPatch, done: () => void = () => {}) {
     setMessage('');
     mutation.mutate(body, {
@@ -288,8 +323,14 @@ export function BludDetails() {
   const own = blud.account_id === actor.id && actor.permissions.includes('bluds.edit_own');
   const canCorrect = actor.permissions.includes('shared_records.correct');
   const editable = own || (canCorrect && correcting);
+  const activeDungeons = refs.dungeons.filter((d) => d.active);
+  const retiredDungeons = refs.dungeons.filter(
+    (d) => !d.active && blud.dungeons.some((p) => p.dungeon_id === d.id)
+  );
+  const bracketFor = (level: number | null) =>
+    level == null ? -1 : Math.floor(level / 10) * 10;
   const brackets = [
-    ...new Set(refs.dungeons.map((item) => Math.floor(item.suggested_level_min / 10) * 10)),
+    ...new Set(activeDungeons.map((d) => bracketFor(d.suggested_level_min))),
   ].sort((a, b) => a - b);
   return (
     <>
@@ -364,14 +405,6 @@ export function BludDetails() {
               <dt className="text-muted-foreground">Character creation date</dt>
               <dd>
                 <time dateTime={blud.character_created_on}>{blud.character_created_on}</time>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Current farming zone</dt>
-              <dd>
-                {choiceName(refs.zones, blud.farming_zone_id)}
-                <br />
-                <UpdatedAt value={blud.farming_zone_updated_at} />
               </dd>
             </div>
           </dl>
@@ -456,21 +489,25 @@ export function BludDetails() {
             />
           </summary>
           <p className="mt-2 text-sm text-muted-foreground">
-            Both completed states count toward your total. Choose “Completed — looking to rerun” to
-            show the guild you’re keen to go again.
+            Both completed states count toward your total. Choose “Completed — looking to rerun”
+            to show the guild you’re keen to go again.
           </p>
+          {!activeDungeons.length && (
+            <p className="mt-4 text-sm text-muted-foreground">No dungeons available.</p>
+          )}
           {brackets.map((bracket) => (
             <div key={bracket} className="mt-6 min-w-0">
               <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-                Starting around level {bracket}
+                {bracket === -1 ? 'Levels unknown' : `Starting around level ${bracket}`}
               </h3>
               <ul className="min-w-0">
-                {refs.dungeons
-                  .filter((item) => Math.floor(item.suggested_level_min / 10) * 10 === bracket)
+                {activeDungeons
+                  .filter((item) => bracketFor(item.suggested_level_min) === bracket)
                   .map((dungeon) => (
                     <DungeonRow
                       key={dungeon.id}
                       dungeon={dungeon}
+                      {...draftFor(dungeon.id)}
                       blud={blud}
                       references={refs}
                       editable={editable}
@@ -481,13 +518,34 @@ export function BludDetails() {
               </ul>
             </div>
           ))}
+          {retiredDungeons.length > 0 && (
+            <div className="mt-6">
+              <h3 className="font-semibold">Previous dungeon progress</h3>
+              <p className="text-sm text-muted-foreground">
+                These dungeons are no longer available. Saved progress is retained.
+              </p>
+              <ul>
+                {retiredDungeons.map((dungeon) => (
+                  <DungeonRow
+                    key={dungeon.id}
+                    {...draftFor(dungeon.id)}
+                    dungeon={dungeon}
+                    blud={blud}
+                    references={refs}
+                    editable={editable}
+                    pending={mutation.isPending}
+                    save={save}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
         </details>
       </section>
       <details className="mt-5 break-words text-sm text-muted-foreground">
-        <summary className="cursor-pointer">Game references · reviewed {refs.reviewed_on}</summary>
+        <summary className="cursor-pointer">Game references</summary>
         <p className="my-2">
-          Suggested levels are guidance. Quest guides may contain beta or Classic-derived
-          information.
+          Game data is supplied by Blizzard. Suggested levels are guidance.
         </p>
         <ul className="space-y-2">
           {refs.sources.map((source) => (
@@ -504,8 +562,8 @@ export function BludDetails() {
           <AlertDialogHeader>
             <AlertDialogTitle>Archive {blud.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This hides the character from the default guild list. All progress is retained, and
-              the owner or an officer can restore it.
+              This hides the character from the default guild list. All progress is retained,
+              and the owner or an officer can restore it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

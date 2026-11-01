@@ -25,9 +25,16 @@ services:
       PGDATABASE: bluddit
       PGUSER: bluddit
       PGPASSWORD_FILE: /run/secrets/postgres_password
+      BLIZZARD_CLIENT_ID: ${BLIZZARD_CLIENT_ID:-}
+      BLIZZARD_CLIENT_SECRET_FILE: /run/secrets/blizzard_client_secret
+      BLIZZARD_REGION: ${BLIZZARD_REGION:-us}
+      BLIZZARD_LOCALE: ${BLIZZARD_LOCALE:-en_US}
+      BLIZZARD_STATIC_NAMESPACE: ${BLIZZARD_STATIC_NAMESPACE:-static-1.60.1_70399-forever-us}
     secrets:
       - source: api_postgres_password
         target: postgres_password
+      - source: blizzard_client_secret
+        target: blizzard_client_secret
     depends_on:
       db:
         condition: service_healthy
@@ -66,6 +73,8 @@ services:
       web:
         condition: service_healthy
 secrets:
+  blizzard_client_secret:
+    file: ${APP_ROOT:?APP_ROOT is required}/shared/blizzard_client_secret
   api_postgres_password:
     file: ${APP_ROOT:?APP_ROOT is required}/shared/api_postgres_password
   postgres_password:

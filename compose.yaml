@@ -34,7 +34,13 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    environment: *database_environment
+    environment:
+      <<: *database_environment
+      BLIZZARD_CLIENT_ID: ${BLIZZARD_CLIENT_ID:-}
+      BLIZZARD_CLIENT_SECRET: ${BLIZZARD_CLIENT_SECRET:-}
+      BLIZZARD_REGION: ${BLIZZARD_REGION:-us}
+      BLIZZARD_LOCALE: ${BLIZZARD_LOCALE:-en_US}
+      BLIZZARD_STATIC_NAMESPACE: ${BLIZZARD_STATIC_NAMESPACE:-static-1.60.1_70399-forever-us}
     depends_on:
       db:
         condition: service_healthy

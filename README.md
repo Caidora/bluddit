@@ -9,7 +9,8 @@ The [Bludlets spreadsheet](https://docs.google.com/spreadsheets/d/1CtopiBvc1u_sk
 As of 1 November 2026, Release 1 is in development.
 
 - **Available:** the application foundation and production deployment, database migrations, session login/logout, registration and membership approval, account administration, permissions, and the guild handbook with officer editing and revision history.
-- **Merged:** the Bluds directory, character details, professions, farming zones, and dungeon completion tracking are now included on `main`. Production acceptance is recorded separately from implementation.
+- **Merged:** the Bluds directory, character details, professions, and dungeon completion tracking are now included on `main`. Production acceptance is recorded separately from implementation.
+- **Implemented locally:** Blizzard-backed reference catalogs with durable hourly caching, automatic supported additions and preserved history (issue #57); live provider/production acceptance is pending. Farming zones are deferred.
 - **Implemented locally:** event creation, editing, cancellation, organizer assignments, and timezone-aware scheduling (issue #20 section 11); production acceptance remains pending.
 - **Planned:** event signups and roster management, personal gear wishlists, material routing and the crafter directory, a useful member home page, and expanded database snapshot/recovery support.
 
@@ -20,7 +21,7 @@ The full Release 1 experience is not complete. Some member pages are still place
 | Area | Intended experience |
 | --- | --- |
 | Accounts and access | Username/password accounts, officer-approved membership, session-based access, and server-enforced permissions |
-| Bluds | A searchable directory of members’ characters, with class/spec, professions and levels, farming zone, creation date, and dungeon progress including an interest in rerunning completed dungeons |
+| Bluds | A searchable directory of members’ characters, with class/spec, professions and levels, creation date, and dungeon progress including an interest in rerunning completed dungeons |
 | Events | Member-created activities with a start time displayed in the viewer’s timezone, optional destination, group size and duration, plus signups and roster management; raid-specific support is deferred |
 | Personal gear wishlist | Character-owned item goals, sources and notes, filtering, and needed/acquired updates with undo |
 | Materials and crafters | Searchable recipients, crafters, specializations, outputs, and delivery instructions, with maintained routing rather than inventory accounting |

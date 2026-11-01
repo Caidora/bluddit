@@ -165,6 +165,8 @@ jobs:
           printf '%s' 'ci-disposable-password' > "$APP_ROOT/shared/postgres_password"
           cp "$APP_ROOT/shared/postgres_password" "$APP_ROOT/shared/api_postgres_password"
           chmod 0444 "$APP_ROOT/shared/api_postgres_password"
+          touch "$APP_ROOT/shared/blizzard_client_secret"
+          chmod 0444 "$APP_ROOT/shared/blizzard_client_secret"
           docker volume create bluddit_postgres_data
           docker compose -f infra/compose.production.yaml up -d --wait db
           docker compose -f infra/compose.production.yaml run --rm --no-deps -T migrate
@@ -223,6 +225,11 @@ jobs:
       APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
       TLS_EMAIL: ${{ secrets.TLS_EMAIL }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+      BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'us' }}
+      BLIZZARD_LOCALE: ${{ vars.BLIZZARD_LOCALE || 'en_US' }}
+      BLIZZARD_STATIC_NAMESPACE: ${{ vars.BLIZZARD_STATIC_NAMESPACE || 'static-1.60.1_70399-forever-us' }}
       SSH_KEY: ${{ secrets.SSH_KEY }}
       SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

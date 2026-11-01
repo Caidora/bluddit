@@ -10,6 +10,8 @@ import uvicorn
 
 from bluddit_api.migrate import run_migrations
 from bluddit_api.utils.security import PASSWORD_HASHER
+from bluddit_api.utils.dependencies import get_reference_data
+from reference_data import REFERENCES
 
 
 async def main():
@@ -51,10 +53,10 @@ async def main():
             os.environ["AUTH_ALLOWED_ORIGINS"] = "http://127.0.0.1:4173"
             from bluddit_api.main import create_app
 
+            app = create_app()
+            app.dependency_overrides[get_reference_data] = lambda: REFERENCES
             server = uvicorn.Server(
-                uvicorn.Config(
-                    create_app(), host="127.0.0.1", port=18005, log_level="warning"
-                )
+                uvicorn.Config(app, host="127.0.0.1", port=18005, log_level="warning")
             )
             await server.serve()
         finally:

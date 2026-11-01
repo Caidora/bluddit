@@ -7,6 +7,8 @@ from httpx import ASGITransport, AsyncClient
 import pytest
 
 from bluddit_api.main import create_app
+from bluddit_api.utils.dependencies import get_reference_data
+from reference_data import REFERENCES
 from bluddit_api.migrate import run_migrations
 from bluddit_api.repositories.auth import AuthRepository
 from bluddit_api.repositories.events import EventsRepository, EventForbidden
@@ -47,6 +49,7 @@ async def events(database, monkeypatch):
         tokens[username] = {"Authorization": "Bearer " + token}
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://test")
     app = create_app()
+    app.dependency_overrides[get_reference_data] = lambda: REFERENCES
     async with (
         app.router.lifespan_context(app),
         AsyncClient(

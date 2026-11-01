@@ -13,7 +13,7 @@ import type { EventContent, GuildEvent, References, Schedule } from './types';
 const selectClass = 'h-10 w-full min-w-0 rounded-md border bg-background px-2';
 export function EventForm({
   initial,
-  references,
+  references: currentReferences,
   pending,
   error,
   save,
@@ -24,6 +24,7 @@ export function EventForm({
   error: unknown;
   save: (body: EventContent) => void;
 }) {
+  const [references] = useState(currentReferences);
   const actor = useAccount();
   const browserZone = viewerTimezone();
   const [local, setLocal] = useState(
@@ -100,11 +101,14 @@ export function EventForm({
             defaultValue={initial?.dungeon_id ?? ''}
           >
             <option value="">No dungeon destination</option>
-            {references.dungeons.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
+            {references.dungeons
+              .filter((c) => c.active || c.id === initial?.dungeon_id)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {!c.active ? ' (unavailable)' : ''}
+                </option>
+              ))}
           </select>
         </label>
         <label className="min-w-0 space-y-2">

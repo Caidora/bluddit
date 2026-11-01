@@ -15,15 +15,13 @@ class BludsRepository:
             cursor = await connection.execute(
                 """
                 SELECT b.blud_id, b.account_id, b.owner_name, b.name, b.class_id,
-                    b.spec_id, b.character_created_on, b.farming_zone_id,
-                    b.farming_zone_updated_at, b.archived, b.created_at, b.updated_at,
+                    b.spec_id, b.character_created_on, b.archived, b.created_at, b.updated_at,
                     b.updated_by_account_id, b.professions, b.dungeons
                 FROM blud_records b
                 WHERE b.archived = %(archived)s
                   AND (NOT %(mine)s OR b.account_id = %(actor_id)s)
                   AND strpos(lower(b.name || ' ' || b.owner_name), lower(%(q)s)) > 0
                   AND (%(class_id)s::text IS NULL OR b.class_id = %(class_id)s)
-                  AND (%(farming_zone_id)s::text IS NULL OR b.farming_zone_id = %(farming_zone_id)s)
                   AND (%(profession_id)s::text IS NULL OR EXISTS (
                       SELECT 1 FROM blud_professions p
                       WHERE p.blud_id = b.blud_id AND p.profession_id = %(profession_id)s))
@@ -39,7 +37,6 @@ class BludsRepository:
                     "mine": filters.mine,
                     "q": filters.q.strip(),
                     "class_id": filters.class_id,
-                    "farming_zone_id": filters.farming_zone_id,
                     "profession_id": filters.profession_id,
                     "dungeon_id": filters.dungeon_id,
                     "dungeon_status": filters.dungeon_status,
@@ -56,7 +53,7 @@ class BludsRepository:
             cursor = await connection.execute(
                 """
                 SELECT blud_id, account_id, owner_name, name, class_id, spec_id,
-                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    character_created_on,
                     archived, created_at, updated_at, updated_by_account_id,
                     professions, dungeons
                 FROM blud_records WHERE blud_id = %(blud_id)s
@@ -71,11 +68,10 @@ class BludsRepository:
             cursor = await connection.execute(
                 """
                 INSERT INTO bluds (account_id, name, class_id, spec_id,
-                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    character_created_on,
                     updated_by_account_id)
                 VALUES (%(actor_id)s, %(name)s, %(class_id)s, %(spec_id)s,
-                    %(character_created_on)s, %(farming_zone_id)s,
-                    CASE WHEN %(farming_zone_id)s::text IS NULL THEN NULL ELSE now() END,
+                    %(character_created_on)s,
                     %(actor_id)s)
                 RETURNING blud_id
                 """,
@@ -84,7 +80,6 @@ class BludsRepository:
                     "class_id": body.class_id,
                     "spec_id": body.spec_id,
                     "character_created_on": body.character_created_on,
-                    "farming_zone_id": body.farming_zone_id,
                     "actor_id": actor_id,
                 },
             )
@@ -93,7 +88,7 @@ class BludsRepository:
             cursor = await connection.execute(
                 """
                 SELECT blud_id, account_id, owner_name, name, class_id, spec_id,
-                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    character_created_on,
                     archived, created_at, updated_at, updated_by_account_id,
                     professions, dungeons
                 FROM blud_records WHERE blud_id = %(blud_id)s
@@ -113,13 +108,11 @@ class BludsRepository:
             "class_id": body.class_id,
             "spec_id": body.spec_id,
             "character_created_on": body.character_created_on,
-            "farming_zone_id": body.farming_zone_id,
             "archived": body.archived,
             "set_name": "name" in body.model_fields_set,
             "set_class_id": "class_id" in body.model_fields_set,
             "set_spec_id": "spec_id" in body.model_fields_set,
             "set_character_created_on": "character_created_on" in body.model_fields_set,
-            "set_farming_zone_id": "farming_zone_id" in body.model_fields_set,
             "set_archived": "archived" in body.model_fields_set,
             "blud_id": blud_id,
             "actor_id": actor_id,
@@ -134,11 +127,6 @@ class BludsRepository:
                     spec_id = CASE WHEN %(set_spec_id)s THEN %(spec_id)s ELSE spec_id END,
                     character_created_on = CASE WHEN %(set_character_created_on)s
                         THEN %(character_created_on)s::date ELSE character_created_on END,
-                    farming_zone_updated_at = CASE WHEN %(set_farming_zone_id)s
-                        AND farming_zone_id IS DISTINCT FROM %(farming_zone_id)s::text
-                        THEN now() ELSE farming_zone_updated_at END,
-                    farming_zone_id = CASE WHEN %(set_farming_zone_id)s
-                        THEN %(farming_zone_id)s ELSE farming_zone_id END,
                     archived = CASE WHEN %(set_archived)s THEN %(archived)s ELSE archived END,
                     updated_at = now(), updated_by_account_id = %(actor_id)s
                 WHERE blud_id = %(blud_id)s AND (account_id = %(actor_id)s OR %(can_correct)s)
@@ -193,7 +181,7 @@ class BludsRepository:
             cursor = await connection.execute(
                 """
                 SELECT blud_id, account_id, owner_name, name, class_id, spec_id,
-                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    character_created_on,
                     archived, created_at, updated_at, updated_by_account_id,
                     professions, dungeons
                 FROM blud_records WHERE blud_id = %(blud_id)s

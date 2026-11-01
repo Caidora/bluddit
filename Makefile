@@ -17,7 +17,7 @@ web-build:
 web-test:
 	npm --prefix apps/web test
 api-test:
-	cd apps/api && uv run --locked pytest --ignore=tests/test_database.py --ignore=tests/test_auth_database.py --ignore=tests/test_membership_database.py --ignore=tests/test_handbook_database.py --ignore=tests/test_bluds_database.py --ignore=tests/test_events_database.py
+	cd apps/api && uv run --locked pytest --ignore=tests/test_database.py --ignore=tests/test_auth_database.py --ignore=tests/test_membership_database.py --ignore=tests/test_handbook_database.py --ignore=tests/test_bluds_database.py --ignore=tests/test_events_database.py --ignore=tests/test_references_database.py
 infra-test:
 	python3 -m unittest discover -s infra/tests -v
 config:
@@ -31,4 +31,4 @@ migrate:
 migration-status:
 	docker compose run --build --rm --no-deps migrate python -m bluddit_api.migrate status
 db-test:
-	cd apps/api && uv run --locked pytest tests/test_database.py tests/test_auth_database.py tests/test_membership_database.py tests/test_handbook_database.py tests/test_bluds_database.py tests/test_events_database.py
+	cd apps/api && uv run --locked pytest tests/test_database.py tests/test_auth_database.py tests/test_membership_database.py tests/test_handbook_database.py tests/test_bluds_database.py tests/test_events_database.py tests/test_references_database.py

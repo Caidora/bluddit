@@ -649,21 +649,87 @@ responsibilities; the application supplies no policy wording.
 
 Migration `0005_bluds.sql` adds the Bluds tables and their read view without
 changing existing account or handbook data. Apply it through the normal Actions
-deployment. There is no member data import or external game-data dependency.
+deployment. The migration itself imports no member data.
 The prior image does not understand migration 0005: use the documented process-only
 rollback checks, preserve the new tables, and roll forward to a compatible image.
 Do not remove the migration ledger entry or drop character data to roll back.
 
-Game catalogs are reviewed declarations in `bluddit_api/data/bluds.py`. Changes
-go through a PR: retain stable IDs, update review/version metadata and source
-links, validate skill/spec relationships, and rerun feature tests. Renaming a
-display label must not change its ID. New dungeons start as not completed for all
-characters and increase the completion denominator; do not remove or repurpose
-IDs referenced by saved progress. Never replace Forever facts with unmarked
-Retail or Classic-only values. No scheduled sync or provider credentials exist.
+Farming-zone columns and values are retained but no longer exposed or updated by
+Bluds. Existing Blud IDs, ownership and progress remain unchanged.
 
-After deployment, use synthetic accounts to create two Bluds, update a profession
-and farming zone, cycle the three dungeon states, verify a cross-owner denial and
-an officer correction, and archive/restore without losing progress. Check mobile
-layout and record the deployed version and results in the corresponding issue or PR. Archive the test
-characters afterward.
+## Blizzard reference data (issue #57)
+
+Migration `0009_reference_data.sql` adds `reference_cache` and
+`reference_entities`. It seeds inactive legacy IDs and labels only. It does not
+activate a curated catalog or rewrite member data. Cache rows contain public
+provider responses; OAuth tokens and credentials are never persisted there.
+
+Local development uses the optional `BLIZZARD_CLIENT_ID` and
+`BLIZZARD_CLIENT_SECRET` values in `.env`. Set `BLIZZARD_REGION` (default `us`),
+`BLIZZARD_LOCALE` (default `en_US`) and `BLIZZARD_STATIC_NAMESPACE` (initially
+`static-1.60.1_70399-forever-us`). Region and namespace must agree. The provider
+uses client credentials, not member Battle.net authorization.
+
+Production uses GitHub Actions secrets `BLIZZARD_CLIENT_ID` and
+`BLIZZARD_CLIENT_SECRET`, plus optional repository variables `BLIZZARD_REGION`,
+`BLIZZARD_LOCALE` and `BLIZZARD_STATIC_NAMESPACE`. The existing Actions deployment
+transfers the secret in its restrictive payload and installs
+`shared/blizzard_client_secret`, owned by UID 10001 with mode 0400, mounted only
+in the API. The API reads `BLIZZARD_CLIENT_SECRET_FILE`; do not set both secret
+sources. Empty credentials disable fetching without affecting readiness. Do not
+print tokens, credentials, authenticated response bodies or member records in
+verification logs.
+
+The HTTP client uses 3-second connect and 10-second request timeouts. Each category
+refresh has a 90-second budget. PostgreSQL leases expire after 120 seconds;
+fencing prevents an old owner from publishing after another worker takes over.
+Successful documents and categories expire after one hour. Categories are fetched
+on demand in background tasks; short frontend polling picks up initial results.
+Expired values continue serving silently. Failures preserve the last successful
+catalog, log only category/error type, and retry on subsequent requests with
+exponential backoff (up to an hour), respecting longer `Retry-After` values.
+A restart retains cache/identities and recovers abandoned leases after expiry.
+
+Classes/specs, professions and dungeon journals use only the configured Forever
+namespace. All pages and details must validate before a category publishes.
+Raids are excluded. Unknown profession types cannot be assigned and absent skill
+caps or dungeon metadata are not invented. Valid empty indexes deactivate current
+choices; failures and malformed responses do not. Previously fetched and legacy
+identities remain available for history. The application does not discover static
+namespace builds from member profiles or guess a build from the game client.
+
+When Blizzard changes the namespace, update the repository variable and deploy
+through Actions. This changes cache keys and triggers a fresh fetch on the next
+catalog request while preserving the prior catalog during failures. Never switch
+to a Retail/Classic namespace to fill gaps. Do not edit historical migrations or
+clear member data to repair provider failures. Image rollback leaves these
+additive tables in place and preserves the existing character schema.
+
+### Verification and outstanding acceptance
+
+CI uses synthetic HTTP fixtures, disposable PostgreSQL databases and browser
+fixtures. The browser API overrides only the reference dependency with synthetic
+choices so account/character/event persistence still uses the real API/database.
+It never relies on production Blizzard credentials.
+
+Live authenticated coverage has **not been verified** in the implementation
+environment because Blizzard credentials were unavailable. The linked
+[unofficial notes](https://mhuijskens.com/WoWForever/Api/) report the versioned
+namespace works and dungeon journals are empty; this is provisional, not deployed
+acceptance. Before enabling/closing #57:
+
+1. Configure app credentials and the current namespace through Actions. Confirm
+   deployment, readiness and migrations succeed.
+2. Sign in with a dedicated test account, open Bluds, and wait for the initial
+   fetch. Verify classes/spec relationships, profession classifications/caps and
+   dungeon journal coverage against authenticated Blizzard responses. Record any
+   empty or unsupported category explicitly; adjust adapters through a PR if
+   observed response shapes differ.
+3. Confirm Events and Bluds use the same dungeon choices, only active entries can
+   be newly assigned, empty classes disable creation, and old records/history
+   remain readable. Check mobile layouts and absence of farming-zone controls.
+4. Verify repeated requests within an hour use cache and refreshes preserve data
+   through a controlled provider failure in a disposable environment. Confirm no
+   stale-data notice appears and credentials never enter public API responses.
+5. Record the deployed version, actual category coverage, verification evidence
+   and unresolved acceptance conditions in the PR/issue. Preserve member records.

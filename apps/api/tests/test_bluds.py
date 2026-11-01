@@ -5,12 +5,12 @@ from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 import pytest
 
-from bluddit_api.data.bluds import REFERENCES
+from reference_data import REFERENCES
 from bluddit_api.main import create_app
 from bluddit_api.models.accounts import Account
 from bluddit_api.models.bluds import BludRecord
 from bluddit_api.utils.auth import current_account
-from bluddit_api.utils.dependencies import get_bluds_repository
+from bluddit_api.utils.dependencies import get_bluds_repository, get_reference_data
 
 CONTENT = {"name": "River", "class_id": "mage", "character_created_on": "2026-10-28"}
 
@@ -37,8 +37,6 @@ def bluds_client(monkeypatch):
         account_id=1,
         owner_name="Member",
         spec_id=None,
-        farming_zone_id=None,
-        farming_zone_updated_at=None,
         archived=False,
         created_at="2026-11-01T00:00:00Z",
         updated_at="2026-11-01T00:00:00Z",
@@ -46,6 +44,7 @@ def bluds_client(monkeypatch):
         professions=[],
         dungeons=[],
     )
+    app.dependency_overrides[get_reference_data] = lambda: REFERENCES
     app.dependency_overrides[current_account] = lambda: actor
     app.dependency_overrides[get_bluds_repository] = lambda: repository
     with TestClient(app) as client:

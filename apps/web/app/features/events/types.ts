@@ -3,8 +3,9 @@ export interface Choice {
   name: string;
 }
 export interface References {
+  refreshing: boolean;
   activities: Choice[];
-  dungeons: Choice[];
+  dungeons: (Choice & { active: boolean })[];
   timezones: string[];
 }
 export interface Schedule {

@@ -15,11 +15,11 @@ Permissions gate actions, with persisted ownership or management relationships l
 ## Bluds
 
 - Members maintain multiple characters and browse a searchable guild directory with character details.
-- Name, class, and user-entered creation date are required. Spec, professions and levels, and farming zone can remain blank. Show when profession and farming-zone information was updated.
+- Name, class, and user-entered creation date are required. Spec, professions and levels can remain blank. Show when profession information was updated. Farming zones are deferred.
 - Dungeon progress distinguishes not completed, completed, and completed with interest in rerunning. Both completed states count as complete.
-- Search and filters help members find characters by owner/name, class, profession, farming zone, or dungeon status, including a view of their own characters.
+- Search and filters help members find characters by owner/name, class, profession, or dungeon status, including a view of their own characters.
 - Owners edit their characters; Officer/GM corrections are explicit and cannot reassign ownership. Archive/restore preserves character identity and progress.
-- Typed, API-owned reference data supplies stable IDs and available dungeon level ranges and guide/quest links. No live game-data provider or quest tracking is required.
+- Blizzard-backed reference data supplies stable IDs, automatic supported additions and available metadata, with a durable one-hour cache. Missing metadata stays unknown; retired selections and progress are preserved. Quest tracking is deferred.
 - Character updates use last-write-wins behavior; revision/conflict workflows are outside the agreed character scope.
 
 Profiles/timezones, main/alt constraints, race/current level, composition summaries, and squads are deferred from this character scope.

@@ -126,6 +126,7 @@ class SchedulePreview(BaseModel):
 
 
 class EventReferences(BaseModel):
+    refreshing: bool = False
     activities: list[Choice]
     dungeons: list[Choice]
     timezones: list[str]

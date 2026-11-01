@@ -11,6 +11,7 @@ DungeonStatus = Literal["not_completed", "completed", "completed_rerun"]
 class Choice(BaseModel):
     id: str
     name: str
+    active: bool = True
 
 
 class ClassReference(Choice):
@@ -18,17 +19,17 @@ class ClassReference(Choice):
 
 
 class ProfessionReference(Choice):
-    category: Literal["primary", "secondary"]
-    max_level: int
+    category: Literal["primary", "secondary"] | None = None
+    max_level: int | None = None
 
 
 class DungeonReference(Choice):
-    location: str
-    suggested_level_min: int
-    suggested_level_max: int
+    location: str | None = None
+    suggested_level_min: int | None = None
+    suggested_level_max: int | None = None
     guide_url: str | None = None
     quest_guide_url: str | None = None
-    source_urls: list[str]
+    source_urls: list[str] = Field(default_factory=list)
 
 
 class ReferenceSource(BaseModel):
@@ -38,11 +39,11 @@ class ReferenceSource(BaseModel):
 
 class BludReferenceData(BaseModel):
     version: str
-    reviewed_on: date
+    refreshing: bool = False
+    fetched_at: dict[str, datetime | None] = Field(default_factory=dict)
     sources: list[ReferenceSource]
     classes: list[ClassReference]
     professions: list[ProfessionReference]
-    zones: list[Choice]
     dungeons: list[DungeonReference]
     dungeon_statuses: list[Choice]
     max_primary_professions: int
@@ -67,7 +68,6 @@ class BludCreate(BludInput):
     class_id: str
     character_created_on: date
     spec_id: str | None = None
-    farming_zone_id: str | None = None
 
 
 class BludPatch(BludInput):
@@ -75,14 +75,13 @@ class BludPatch(BludInput):
     class_id: str | None = None
     character_created_on: date | None = None
     spec_id: str | None = None
-    farming_zone_id: str | None = None
     archived: bool | None = Field(default=None, strict=True)
     professions: list[ProfessionInput] | None = None
     dungeons: list[DungeonInput] | None = None
 
     @model_validator(mode="after")
     def reject_null_required_fields(self):
-        nullable = {"spec_id", "farming_zone_id"}
+        nullable = {"spec_id"}
         for field in self.model_fields_set - nullable:
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
@@ -97,7 +96,6 @@ class BludFilter(BaseModel):
     archived: bool = False
     class_id: str | None = None
     profession_id: str | None = None
-    farming_zone_id: str | None = None
     dungeon_id: str | None = None
     dungeon_status: DungeonStatus = "not_completed"
     limit: int = Field(default=25, ge=1, le=100)
@@ -120,8 +118,6 @@ class BludRecord(BaseModel):
     class_id: str
     spec_id: str | None
     character_created_on: date
-    farming_zone_id: str | None
-    farming_zone_updated_at: datetime | None
     archived: bool
     created_at: datetime
     updated_at: datetime

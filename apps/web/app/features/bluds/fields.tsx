@@ -25,6 +25,7 @@ export function SelectField({
         {choices.map((choice) => (
           <option key={choice.id} value={choice.id}>
             {choice.name}
+            {!choice.active ? ' (unavailable)' : ''}
           </option>
         ))}
       </select>

@@ -4,25 +4,33 @@ import type { Blud, References } from '../app/features/bluds/types';
 
 const references: References = {
   version: 'synthetic-1',
-  reviewed_on: '2026-11-01',
+  refreshing: false,
+  fetched_at: {},
   sources: [],
   max_primary_professions: 2,
   classes: [
-    { id: 'mage', name: 'Mage', specs: [{ id: 'mage-frost', name: 'Frost' }] },
-    { id: 'warrior', name: 'Warrior', specs: [{ id: 'warrior-arms', name: 'Arms' }] },
+    {
+      active: true,
+      id: 'mage',
+      name: 'Mage',
+      specs: [{ active: true, id: 'mage-frost', name: 'Frost' }],
+    },
+    {
+      active: true,
+      id: 'warrior',
+      name: 'Warrior',
+      specs: [{ active: true, id: 'warrior-arms', name: 'Arms' }],
+    },
   ],
   professions: [
-    { id: 'mining', name: 'Mining', category: 'primary', max_level: 300 },
-    { id: 'alchemy', name: 'Alchemy', category: 'primary', max_level: 300 },
-    { id: 'tailoring', name: 'Tailoring', category: 'primary', max_level: 300 },
-    { id: 'cooking', name: 'Cooking', category: 'secondary', max_level: 300 },
-  ],
-  zones: [
-    { id: 'westfall', name: 'Westfall' },
-    { id: 'riverglades', name: 'Riverglades' },
+    { active: true, id: 'mining', name: 'Mining', category: 'primary', max_level: 300 },
+    { active: true, id: 'alchemy', name: 'Alchemy', category: 'primary', max_level: 300 },
+    { active: true, id: 'tailoring', name: 'Tailoring', category: 'primary', max_level: 300 },
+    { active: true, id: 'cooking', name: 'Cooking', category: 'secondary', max_level: 300 },
   ],
   dungeons: [
     {
+      active: true,
       id: 'ragefire-chasm',
       name: 'Ragefire Chasm',
       location: 'Orgrimmar',
@@ -33,6 +41,7 @@ const references: References = {
       source_urls: [],
     },
     {
+      active: true,
       id: 'hall-of-thanes',
       name: 'Hall of Thanes',
       location: 'Dun Morogh',
@@ -44,9 +53,9 @@ const references: References = {
     },
   ],
   dungeon_statuses: [
-    { id: 'not_completed', name: 'Not completed' },
-    { id: 'completed', name: 'Completed' },
-    { id: 'completed_rerun', name: 'Completed — looking to rerun' },
+    { active: true, id: 'not_completed', name: 'Not completed' },
+    { active: true, id: 'completed', name: 'Completed' },
+    { active: true, id: 'completed_rerun', name: 'Completed — looking to rerun' },
   ],
 };
 const original: Blud = {
@@ -57,8 +66,6 @@ const original: Blud = {
   class_id: 'mage',
   spec_id: null,
   character_created_on: '2026-10-28',
-  farming_zone_id: null,
-  farming_zone_updated_at: null,
   archived: false,
   created_at: '2026-11-01T00:00:00Z',
   updated_at: '2026-11-01T00:00:00Z',
@@ -71,6 +78,7 @@ const original: Blud = {
 };
 async function bludsApi(context: BrowserContext, initial = [original]) {
   const state = {
+    references: structuredClone(references),
     bluds: structuredClone(initial),
     error: 0,
     failReads: false,
@@ -80,7 +88,8 @@ async function bludsApi(context: BrowserContext, initial = [original]) {
   await context.route('**/api/bluds**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.pathname.endsWith('/reference-data')) return route.fulfill({ json: references });
+    if (url.pathname.endsWith('/reference-data'))
+      return route.fulfill({ json: state.references });
     const method = request.method();
     const id = Number(url.pathname.split('/')[3]);
     if (method !== 'GET') {
@@ -111,7 +120,10 @@ async function bludsApi(context: BrowserContext, initial = [original]) {
                 (patch: { dungeon_id: string }) => patch.dungeon_id === item.dungeon_id
               )
           ),
-          ...body.dungeons.map((item: object) => ({ ...item, updated_at: '2026-11-01T01:00:00Z' })),
+          ...body.dungeons.map((item: object) => ({
+            ...item,
+            updated_at: '2026-11-01T01:00:00Z',
+          })),
         ];
         updated.completed_dungeons = updated.dungeons.filter(
           (item) => item.status !== 'not_completed'
@@ -120,7 +132,6 @@ async function bludsApi(context: BrowserContext, initial = [original]) {
           (item) => item.status === 'completed_rerun'
         ).length;
       }
-      if ('farming_zone_id' in body) updated.farming_zone_updated_at = '2026-11-01T01:00:00Z';
       state.bluds = state.bluds.map((item) => (item.blud_id === id ? updated : item));
       return route.fulfill({ json: updated });
     }
@@ -139,7 +150,9 @@ async function bludsApi(context: BrowserContext, initial = [original]) {
       (item) =>
         item.archived === (params.get('archived') === 'true') &&
         (!params.get('q') ||
-          `${item.name} ${item.owner_name}`.toLowerCase().includes(params.get('q')!.toLowerCase()))
+          `${item.name} ${item.owner_name}`
+            .toLowerCase()
+            .includes(params.get('q')!.toLowerCase()))
     );
     const limit = Number(params.get('limit') ?? 25),
       offset = Number(params.get('offset') ?? 0);
@@ -181,7 +194,7 @@ test('create from empty directory; failed save preserves required fields', async
   expect(api.bluds[0].spec_id).toBeNull();
 });
 
-test('owner updates professions, farming, dungeons; archive and restore on a phone', async ({
+test('owner updates professions and dungeons; archive and restore on a phone', async ({
   page,
   context,
 }, info) => {
@@ -190,12 +203,11 @@ test('owner updates professions, farming, dungeons; archive and restore on a pho
   const api = await bludsApi(context);
   await page.goto('/bluds/10');
   await page.getByRole('button', { name: 'Edit details' }).click();
-  await page.getByLabel('Farming zone', { exact: true }).selectOption('riverglades');
   await page.getByLabel('Spec', { exact: true }).selectOption('mage-frost');
   await page.getByRole('button', { name: 'Save details' }).click();
-  await expect(page.getByRole('region', { name: 'Character details' })).toContainText(
-    'Riverglades'
-  );
+  await expect(page.getByRole('region', { name: 'Character details' })).toBeVisible();
+  await expect(page.getByText('Current farming zone')).toHaveCount(0);
+  expect(api.bluds[0].spec_id).toBe('mage-frost');
   await page.getByRole('button', { name: 'Edit professions' }).click();
   await page.getByRole('checkbox', { name: 'Mining', exact: true }).check();
   await page.getByLabel('Mining level', { exact: true }).fill('120');
@@ -210,7 +222,9 @@ test('owner updates professions, farming, dungeons; archive and restore on a pho
     'Alchemy · Level not set'
   );
   await page.getByRole('region', { name: 'Dungeon progress' }).locator('summary').click();
-  await page.getByLabel('Ragefire Chasm status', { exact: true }).selectOption('completed_rerun');
+  await page
+    .getByLabel('Ragefire Chasm status', { exact: true })
+    .selectOption('completed_rerun');
   await page.getByRole('button', { name: 'Save Ragefire Chasm status', exact: true }).click();
   await expect(page.getByText('1/2 dungeons completed', { exact: true })).toBeVisible();
   await expect(page.getByText('1 looking to rerun', { exact: true })).toBeVisible();
@@ -231,7 +245,10 @@ test('owner updates professions, farming, dungeons; archive and restore on a pho
   await noOverflow(page);
 });
 
-test('dungeon disclosure preserves drafts and stays open after saving', async ({ page, context }) => {
+test('dungeon disclosure preserves drafts and stays open after saving', async ({
+  page,
+  context,
+}) => {
   await mockApi(context, member);
   const api = await bludsApi(context);
   await page.goto('/bluds/10');
@@ -264,7 +281,10 @@ test('dungeon disclosure preserves drafts and stays open after saving', async ({
   await expect(summary).toContainText('1/2 completed');
 });
 
-test('dungeon disclosure resets on reload and visits to either character', async ({ page, context }) => {
+test('dungeon disclosure resets on reload and visits to either character', async ({
+  page,
+  context,
+}) => {
   await mockApi(context, member);
   await bludsApi(context, [original, { ...original, blud_id: 11, name: 'Riveralt' }]);
   await page.goto('/bluds/10');
@@ -297,11 +317,17 @@ for (const width of [1280, 375, 320]) {
     const summary = page.getByRole('region', { name: 'Dungeon progress' }).locator('summary');
     await expect(summary).toContainText('0/2 completed');
     await noOverflow(page);
-    await page.screenshot({ path: info.outputPath(`dungeons-${width}-collapsed.png`), fullPage: true });
+    await page.screenshot({
+      path: info.outputPath(`dungeons-${width}-collapsed.png`),
+      fullPage: true,
+    });
     await summary.click();
     await expect(page.getByLabel('Ragefire Chasm status', { exact: true })).toBeVisible();
     await noOverflow(page);
-    await page.screenshot({ path: info.outputPath(`dungeons-${width}-expanded.png`), fullPage: true });
+    await page.screenshot({
+      path: info.outputPath(`dungeons-${width}-expanded.png`),
+      fullPage: true,
+    });
   });
 }
 
@@ -310,7 +336,10 @@ test('combined filters and pagination live in URL; back link retains filters', a
   context,
 }, info) => {
   await mockApi(context, member);
-  const api = await bludsApi(context, [original, { ...original, blud_id: 11, name: 'Riveralt' }]);
+  const api = await bludsApi(context, [
+    original,
+    { ...original, blud_id: 11, name: 'Riveralt' },
+  ]);
   await page.goto('/bluds?limit=1');
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page).toHaveURL(/offset=1/);
@@ -320,7 +349,6 @@ test('combined filters and pagination live in URL; back link retains filters', a
   await page.getByLabel('Search characters or members').fill('River');
   await page.getByLabel('Class filter').selectOption('mage');
   await page.getByLabel('Profession filter').selectOption('mining');
-  await page.getByLabel('Farming zone filter').selectOption('westfall');
   await page.getByLabel('Dungeon filter').selectOption('ragefire-chasm');
   await page.getByLabel('Dungeon status filter').selectOption('completed_rerun');
   await page.getByRole('checkbox', { name: 'Mine only' }).check();
@@ -375,4 +403,83 @@ test('missing resources, read errors, and capability gates', async ({ page, cont
   auth.account = { ...member, permissions: ['guild.read'] };
   await page.goto('/bluds/10');
   await expect(page).toHaveURL(/\/unauthorized$/);
+});
+
+test('empty catalogs disable creation and old farming-zone bookmarks are cleaned', async ({
+  page,
+  context,
+}) => {
+  await mockApi(context, member);
+  const api = await bludsApi(context);
+  api.references.classes.forEach((entry) => {
+    entry.active = false;
+  });
+  api.references.dungeons = [];
+  await page.goto('/bluds?farming_zone_id=westfall&q=River');
+  await expect(page).not.toHaveURL(/farming_zone_id/);
+  await expect(page.getByRole('button', { name: 'Add Blud' })).toBeDisabled();
+  await expect(page.getByLabel('Farming zone filter')).toHaveCount(0);
+  expect(api.searches.every((query) => !query.includes('farming_zone_id'))).toBe(true);
+  await expect(page.getByRole('link', { name: 'Riverfrost', exact: true })).toBeVisible();
+});
+
+test('unknown dungeon metadata and retired progress are usable on mobile', async ({
+  page,
+  context,
+}, info) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await mockApi(context, member);
+  const api = await bludsApi(context, [
+    {
+      ...original,
+      dungeons: [
+        { dungeon_id: 'hall-of-thanes', status: 'completed', updated_at: original.updated_at },
+      ],
+    },
+  ]);
+  api.references.dungeons[0] = {
+    ...api.references.dungeons[0],
+    suggested_level_min: null,
+    suggested_level_max: null,
+    location: null,
+    guide_url: null,
+  };
+  api.references.dungeons[1].active = false;
+  await page.goto('/bluds/10');
+  await expect(page.getByText('Current farming zone')).toHaveCount(0);
+  await page.getByRole('region', { name: 'Dungeon progress' }).locator('summary').click();
+  await expect(
+    page.getByRole('heading', { name: 'Levels unknown', exact: true })
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Previous dungeon progress' })).toBeVisible();
+  await expect(page.getByLabel('Hall of Thanes status')).toHaveValue('completed');
+  await expect(
+    page.getByLabel('Hall of Thanes status').locator('option[value=completed_rerun]')
+  ).toHaveCount(0);
+  await expect(page.getByLabel('Ragefire Chasm status')).toBeVisible();
+  await noOverflow(page);
+  await page.screenshot({
+    path: info.outputPath('dynamic-dungeons-mobile.png'),
+    fullPage: true,
+  });
+});
+
+test('hourly reference refresh keeps an in-progress character edit and stays quiet', async ({
+  page,
+  context,
+}) => {
+  await page.clock.install();
+  await mockApi(context, member);
+  const api = await bludsApi(context);
+  await page.goto('/bluds/10');
+  await page.getByRole('button', { name: 'Edit details' }).click();
+  await page.getByLabel('Character name', { exact: true }).fill('Unsaved name');
+  await page.getByLabel('Class', { exact: true }).selectOption('warrior');
+  api.references.classes[1].active = false;
+  api.references.fetched_at = { classes: '2026-10-01T00:00:00Z' };
+  await page.clock.fastForward('01:00:01');
+  await expect(page.getByLabel('Character name', { exact: true })).toHaveValue('Unsaved name');
+  await expect(page.getByLabel('Class', { exact: true })).toHaveValue('warrior');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText(/stale|last successful/i)).toHaveCount(0);
 });
