@@ -10,7 +10,9 @@ from bluddit_api import admin
 from bluddit_api.models.accounts import Account, AccountCredentials
 from bluddit_api.utils.auth import AuthSettings, LoginThrottle
 from bluddit_api.main import create_app
-from bluddit_api.utils.dependencies import get_auth_repository
+from bluddit_api.utils.dependencies import get_auth_repository, get_oauth_repository
+from oauth_helpers import configure_battlenet
+from datetime import datetime, timedelta, timezone
 from bluddit_api.utils.security import (
     new_token,
     normalize_username,
@@ -61,6 +63,7 @@ def test_origin_csrf_json_and_secret_safe_validation(monkeypatch):
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://testserver")
     app = create_app()
     app.dependency_overrides[get_auth_repository] = lambda: object()
+    app.dependency_overrides[get_oauth_repository] = lambda: object()
     with TestClient(app) as client:
         headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
         for bad in (
@@ -139,8 +142,11 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
     repository.get_account_credentials.return_value = AccountCredentials(
         id=1, password_hash="test-hash", membership_state="active"
     )
-    repository.create_session.return_value = True
-    repository.rotate_session.return_value = True
+    configure_battlenet(monkeypatch, "http://testserver")
+    oauth = AsyncMock()
+    repository.rotate_session.return_value = datetime.now(timezone.utc) + timedelta(
+        hours=1
+    )
     repository.get_account_for_hashed_access_token.return_value = Account(
         id=1,
         username="member",
@@ -151,6 +157,7 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
     )
     app = create_app()
     app.dependency_overrides[get_auth_repository] = lambda: repository
+    app.dependency_overrides[get_oauth_repository] = lambda: oauth
     headers = {"Origin": "http://testserver", "X-CSRF-Protection": "1"}
     with TestClient(app) as client:
         response = client.post(
@@ -159,18 +166,16 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
             json={"username": "member", "password": "test-password"},
         )
         assert response.status_code == 200
-        assert set(response.json()) == {"access_token", "token_type", "expires_in"}
-        assert response.json()["token_type"] == "Bearer"
-        assert response.json()["expires_in"] == 600
-        access = response.json()["access_token"]
-        refresh = client.cookies.get("bluddit_refresh")
-        response = client.get(
-            "/api/auth/me", headers={"Authorization": "Bearer " + access}
-        )
-        assert response.json()["username"] == "member"
-        assert "guild.read" in response.json()["permissions"]
-        repository.get_account_for_hashed_access_token.assert_awaited_once_with(
-            token_hash(access)
+        assert set(response.json()) == {"authorization_url"}
+        assert "oauth.battle.net/authorize" in response.json()["authorization_url"]
+        assert client.cookies.get("bluddit_refresh") is None
+        oauth.create_attempt.assert_awaited_once()
+        refresh = new_token()
+        client.cookies.set(
+            "bluddit_refresh",
+            refresh,
+            domain="testserver.local",
+            path="/api/auth/token",
         )
         response = client.post("/api/auth/token", headers=headers)
         assert response.status_code == 200
@@ -184,4 +189,4 @@ def test_auth_routes_accept_repository_override_without_database(monkeypatch):
         assert response.content == b""
         repository.revoke_session.assert_awaited_once_with(token_hash(rotated_refresh))
         repository.get_account_credentials.assert_awaited_once_with("member")
-        repository.create_session.assert_awaited_once()
+        repository.create_session.assert_not_awaited()

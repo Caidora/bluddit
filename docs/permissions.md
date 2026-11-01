@@ -10,8 +10,9 @@ state on every request; pending, rejected, and inactive accounts have no access.
 
 | Action | Permission | Additional restriction |
 | --- | --- | --- |
-| Register | Public | Always creates a pending Member; cannot supply role/state |
-| Login / refresh / current account | Active account | Valid credentials/session; `/me` only returns the caller |
+| Register | Verified Battle.net signup cookie | Always creates a pending Member; cannot supply identity, role, or state |
+| Battle.net login / refresh / current account | Active linked account | Valid provider identity/session; fixed expiry up to 24 hours; `/me` only returns the caller |
+| Legacy migration proof and linking | Unlinked account with valid password | Allowed in every membership state; grants no member access and preserves membership/role |
 | List/read accounts; approve/reject/deactivate/activate | `accounts.manage` | Officers and GM; protected GM and membership-transition rules |
 | Promote to Officer / demote to Member | `accounts.manage` | GM only; explicit source role; no self-role changes or changes to GM; retain an active administrator |
 | Read policy | `policy.read` | Officers and GM; no mutation API |
@@ -88,3 +89,14 @@ resource-specific tests belong with the features that introduce those resources.
 Events lock the event before checking current assignments and writing. Organizer
 removal therefore affects edits queued behind that lock. Assignment updates use
 the same lock. See [Events](events.md) for the concrete API and section 12 contract.
+
+## Battle.net identity migration
+
+Account IDs and all ownership relationships remain stable. Battle.net account ID
+is unique and authoritative; BattleTags and display names never merge accounts.
+Linking atomically removes the password and revokes all old refresh sessions.
+Migration 0008 revokes existing sessions immediately, while unlinked credentials
+remain available for migration. Linked accounts cannot receive a local password
+through the administrative CLI. Pending, rejected, and inactive accounts can link
+without receiving member access. Each login has its own fixed expiry; signing in
+elsewhere does not renew it. Provider tokens remain encrypted and private.

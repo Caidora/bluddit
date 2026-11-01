@@ -23,7 +23,7 @@ allowed origin to match the frontend. Install Chromium once with
 
 Browser tests use mocked API responses by default. Set `TEST_DATABASE_URL` to a
 disposable PostgreSQL database ending in `_test` to also run the real
-registration → approval → login test. Its fixture creates and drops a separate
+Battle.net signup → approval → login and legacy migration tests. Its fixture creates and drops a separate
 random database; the test user needs database-creation permission. `make verify`
 includes frontend, API, database, infrastructure, and Compose checks.
 
@@ -100,7 +100,7 @@ redirects to login. Cached permissions can be stale during an outage, so every
 write remains subject to API authorization.
 
 Keep form fields and dialog state local. Read and write refs in handlers or effects,
-not during render. Account forms snapshot credentials in the submit handler and
+not during render. Legacy migration forms snapshot credentials in the submit handler and
 provide a reader to the mutation function: passwords are not mutation variables or
 cached results. Clear the snapshot after settlement and on unmount; retain field
 values after errors so users can retry. Access tokens stay in session-module memory;
@@ -118,3 +118,19 @@ coordinate refresh and logout across tabs.
 4. Add behavioral browser coverage for success, errors, and permission boundaries.
    For cache/session changes, cover cancellation, identity changes, and background
    refresh without discarding local state.
+
+## Battle.net sign-in
+
+Login and registration start a full-page navigation to Battle.net. Password fields
+appear only after choosing **Migrate existing account** and only establish a
+short-lived linking attempt. The connection prompt must be completed before any
+member session exists. New identities choose a display name on `/register/complete`
+and explicitly confirm that they are requesting a new account.
+
+The backend owns `/api/oauth-redirect`; provider codes and tokens never reach the
+SPA. `/auth/complete` obtains a Bluddit token and current account under the existing
+Web Lock, then publishes the new identity through BroadcastChannel and clears
+protected caches. Starting sign-in first logs out the current browser across tabs.
+Sessions have fixed provider-bound expiry up to 24 hours, without sliding renewal.
+The browser test server exposes a synthetic authorization page only in its isolated
+test fixture; no production provider URL override or test-login route exists.

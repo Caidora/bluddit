@@ -67,18 +67,19 @@ for (const path of ['/login', '/register']) {
     });
     try {
       await page.goto(path);
-      await page.getByLabel('Username', { exact: true }).fill('river');
-      await page.getByLabel('Password', { exact: true }).fill('valid-password');
+      await expect(
+        page.getByRole('button', { name: 'Migrate existing account', exact: true })
+      ).toBeVisible();
       await expect(page.getByRole('button', { name: 'Checking session…' })).toBeDisabled();
     } finally {
       release();
     }
     await expect(
       page.getByRole('button', {
-        name: path === '/login' ? 'Log in' : 'Request membership',
+        name: 'Continue with Battle.net',
         exact: true,
       })
     ).toBeEnabled();
-    await expect(page.getByLabel('Username', { exact: true })).toHaveValue('river');
+    await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0);
   });
 }

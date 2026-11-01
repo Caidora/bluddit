@@ -34,7 +34,12 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    environment: *database_environment
+    environment:
+      <<: *database_environment
+      BATTLE_NET_CLIENT_ID: ${BATTLE_NET_CLIENT_ID:-}
+      BATTLE_NET_CLIENT_SECRET: ${BATTLE_NET_CLIENT_SECRET:-}
+      BATTLE_NET_REDIRECT_URI: ${BATTLE_NET_REDIRECT_URI:-}
+      BATTLE_NET_TOKEN_ENCRYPTION_KEY: ${BATTLE_NET_TOKEN_ENCRYPTION_KEY:-}
     depends_on:
       db:
         condition: service_healthy

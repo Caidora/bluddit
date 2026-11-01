@@ -1,26 +1,30 @@
 import { test, expect } from '@playwright/test';
 import { login } from './fixtures';
 
-test('real registration → GM approval → login, refresh, and logout', async ({ page, browser }) => {
+test('real Battle.net registration → GM approval → login, refresh, and logout', async ({
+  page,
+  browser,
+}) => {
   test.skip(
     !process.env.TEST_DATABASE_URL,
     'Set TEST_DATABASE_URL for the disposable real API fixture; make verify and CI require it.'
   );
   await page.goto('/register');
+  await page.getByRole('button', { name: 'Continue with Battle.net', exact: true }).click();
+  await page.getByRole('button', { name: 'Authorize Browser Member' }).click();
   await page.getByLabel('Display name', { exact: true }).fill('Browser Member');
-  await page.getByLabel('Username', { exact: true }).fill('browser_member');
-  await page.getByLabel('Password', { exact: true }).fill('browser-only-password');
+  await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Request membership' }).click();
   await expect(page.getByRole('heading', { name: 'Awaiting approval' })).toBeVisible();
   await login(page, 'browser_member', 'browser-only-password');
-  await expect(page.getByRole('alert')).toContainText('Invalid username or password');
+  await expect(page.getByRole('heading', { name: 'Awaiting approval' })).toBeVisible();
   const adminContext = await browser.newContext();
   const admin = await adminContext.newPage();
   try {
     await login(admin, 'browser_gm', 'browser-only-password');
     await expect(admin.getByRole('heading', { name: 'Welcome, Browser GM' })).toBeVisible();
     await admin.getByRole('link', { name: 'Membership', exact: true }).click();
-    await admin.getByRole('link', { name: 'Review browser_member' }).click();
+    await admin.getByRole('link', { name: 'Review BrowserMember#1234' }).click();
     await admin.getByRole('button', { name: 'Approve membership' }).click();
     await expect(admin.getByRole('button', { name: 'Deactivate account' })).toBeVisible();
     await login(page, 'browser_member', 'browser-only-password');
@@ -95,13 +99,9 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await admin.goto(eventPath);
     await admin.getByRole('checkbox', { name: 'Browser GM (browser_gm)' }).check();
     await admin.getByRole('button', { name: 'Save organizers' }).click();
-    await expect(admin.getByRole('region', { name: 'Event details' })).toContainText(
-      'Browser GM'
-    );
+    await expect(admin.getByRole('region', { name: 'Event details' })).toContainText('Browser GM');
     await page.reload();
-    await expect(page.getByRole('region', { name: 'Event details' })).toContainText(
-      'Browser GM'
-    );
+    await expect(page.getByRole('region', { name: 'Event details' })).toContainText('Browser GM');
     await page.getByRole('link', { name: 'Edit event', exact: true }).click();
     await page.getByLabel('Title', { exact: true }).fill('Updated member event');
     await page.getByRole('button', { name: 'Save event', exact: true }).click();
@@ -109,9 +109,7 @@ test('real registration → GM approval → login, refresh, and logout', async (
     await page.getByRole('button', { name: 'Cancel event', exact: true }).click();
     await page.getByRole('button', { name: 'Confirm cancellation' }).click();
     await expect(
-      page
-        .getByRole('region', { name: 'Event details' })
-        .getByText('Cancelled', { exact: true })
+      page.getByRole('region', { name: 'Event details' }).getByText('Cancelled', { exact: true })
     ).toBeVisible();
     await page.getByRole('link', { name: 'Log out', exact: true }).click();
     await expect(page).toHaveURL(/\/login$/);
@@ -120,4 +118,20 @@ test('real registration → GM approval → login, refresh, and logout', async (
   } finally {
     await adminContext.close();
   }
+});
+
+test('real legacy migration keeps the existing account and requires Battle.net', async ({
+  page,
+}) => {
+  test.skip(!process.env.TEST_DATABASE_URL, 'Requires disposable PostgreSQL fixture');
+  await page.goto('/login?migrate=1');
+  await page.getByLabel('Username', { exact: true }).fill('browser_legacy');
+  await page.getByLabel('Password', { exact: true }).fill('browser-only-password');
+  await page.getByRole('button', { name: 'Verify existing account', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Connect Battle.net' })).toBeVisible();
+  await page.getByRole('link', { name: 'Connect Battle.net', exact: true }).click();
+  await page.getByRole('button', { name: 'Authorize Browser Legacy' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome, Browser Legacy' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Welcome, Browser Legacy' })).toBeVisible();
 });

@@ -70,7 +70,8 @@ export function AccountList() {
                         {account.display_name}
                       </Link>
                       <p className="break-all text-sm text-muted-foreground">
-                        u/{account.username}
+                        {account.battletag ??
+                          (account.username ? `u/${account.username}` : `Account #${account.id}`)}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -78,7 +79,11 @@ export function AccountList() {
                       <Badge variant="outline">{account.membership_state}</Badge>
                       <Button asChild variant="outline" size="sm">
                         <Link to={`/admin/accounts/${account.id}`}>
-                          Review<span className="sr-only"> {account.username}</span>
+                          Review
+                          <span className="sr-only">
+                            {' '}
+                            {account.battletag ?? account.username ?? account.display_name}
+                          </span>
                         </Link>
                       </Button>
                     </div>

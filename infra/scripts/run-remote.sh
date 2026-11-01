@@ -7,7 +7,7 @@ for name in GH_TOKEN GH_ACTOR; do
   [[ -n ${!name:-} ]] || { echo "::error::Missing $name"; exit 1; }
 done
 if [[ $action == deploy ]]; then
-  for name in POSTGRES_PASSWORD WEB_IMAGE API_IMAGE DB_IMAGE NGINX_IMAGE RELEASE_ID TLS_EMAIL; do
+  for name in POSTGRES_PASSWORD BATTLE_NET_CLIENT_ID BATTLE_NET_CLIENT_SECRET BATTLE_NET_TOKEN_ENCRYPTION_KEY WEB_IMAGE API_IMAGE DB_IMAGE NGINX_IMAGE RELEASE_ID TLS_EMAIL; do
     [[ -n ${!name:-} ]] || { echo "::error::Missing deployment configuration: $name"; exit 1; }
   done
 fi
@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 
 stage = Path(os.environ["STAGE"])
-for name, variable in [("registry_token", "GH_TOKEN"), ("registry_actor", "GH_ACTOR"), ("postgres_password", "POSTGRES_PASSWORD")]:
+for name, variable in [("registry_token", "GH_TOKEN"), ("registry_actor", "GH_ACTOR"), ("postgres_password", "POSTGRES_PASSWORD"), ("battlenet_client_id", "BATTLE_NET_CLIENT_ID"), ("battlenet_client_secret", "BATTLE_NET_CLIENT_SECRET"), ("battlenet_token_encryption_key", "BATTLE_NET_TOKEN_ENCRYPTION_KEY")]:
     (stage / name).write_text(os.environ.get(variable, ""))
 if os.environ.get("RELEASE_ID"):
     manifest = {key: os.environ[key] for key in ("WEB_IMAGE", "API_IMAGE", "DB_IMAGE", "NGINX_IMAGE")}

@@ -1,5 +1,13 @@
 """Membership HTTP flows, persisted invariants, and concurrent administration."""
 
+from oauth_helpers import (
+    linked_session,
+    FakeBattleNetClient,
+    oauth_callback,
+    oauth_login,
+    identity,
+)
+
 import asyncio
 
 from httpx import ASGITransport, AsyncClient
@@ -12,6 +20,8 @@ from bluddit_api.migrate import MIGRATIONS, run_migrations
 from bluddit_api.repositories.auth import AuthRepository
 from bluddit_api.repositories.membership import MembershipRepository
 from bluddit_api.utils.auth import current_account
+from bluddit_api.repositories.oauth import OAuthRepository
+from bluddit_api.utils.battlenet import REGISTRATION_COOKIE
 from bluddit_api.utils.security import (
     PASSWORD_HASHER,
     MembershipState,
@@ -50,12 +60,11 @@ async def members(database, monkeypatch):
             users[username] = (await cursor.fetchone())[0]
         if state == "active":
             token = new_token()
-            assert await AuthRepository(database).create_session(
-                users[username], ENCODED, token_hash(new_token()), token_hash(token)
-            )
+            assert await linked_session(database, users[username], token)
             tokens[username] = {"Authorization": "Bearer " + token}
     monkeypatch.setenv("AUTH_ALLOWED_ORIGINS", "http://test")
     app = create_app()
+    app.state.battlenet_client = FakeBattleNetClient()
     async with (
         app.router.lifespan_context(app),
         AsyncClient(
@@ -69,25 +78,22 @@ async def members(database, monkeypatch):
 
 async def test_registration_approval_login_and_account_reads(members):
     client, database, _, users, tokens = members
+    await oauth_callback(client, 9999)
     response = await client.post(
-        "/api/auth/register",
-        json={
-            "username": " New_User ",
-            "display_name": " New User ",
-            "password": PASSWORD,
-        },
+        "/api/auth/register", json={"display_name": " New User "}
     )
     assert response.status_code == 201
     account = response.json()
     assert (account["username"], account["membership_state"], account["role_name"]) == (
-        "new_user",
+        None,
         "pending",
         "member",
     )
     assert "password_hash" not in account and "access_token" not in account
-    assert "set-cookie" not in response.headers
-    credentials = {"username": "new_user", "password": PASSWORD}
-    assert (await client.post("/api/auth/login", json=credentials)).status_code == 401
+    assert client.cookies.get("bluddit_refresh") is None
+    assert (await oauth_callback(client, 9999)).headers[
+        "location"
+    ] == "/pending-approval"
     target = f"/api/accounts/{account['id']}"
     assert (
         await client.post(target + "/approve", headers=tokens["member"])
@@ -96,7 +102,7 @@ async def test_registration_approval_login_and_account_reads(members):
     assert (
         await client.post(target + "/approve", headers=tokens["officer_a"])
     ).status_code == 200
-    response = await client.post("/api/auth/login", json=credentials)
+    response = await oauth_login(client, 9999)
     assert response.status_code == 200
     access = {"Authorization": "Bearer " + response.json()["access_token"]}
     assert (
@@ -131,16 +137,17 @@ async def test_registration_approval_login_and_account_reads(members):
 
 async def test_duplicate_registration_is_atomic(members):
     client, _, _, _, _ = members
-    body = {"username": "duplicate", "display_name": "A", "password": PASSWORD}
+    await oauth_callback(client, 9999)
+    cookie = f"{REGISTRATION_COOKIE}={client.cookies.get(REGISTRATION_COOKIE)}"
     results = await asyncio.gather(
-        client.post("/api/auth/register", json=body),
-        client.post("/api/auth/register", json={**body, "display_name": "B"}),
+        client.post(
+            "/api/auth/register", json={"display_name": "A"}, headers={"Cookie": cookie}
+        ),
+        client.post(
+            "/api/auth/register", json={"display_name": "B"}, headers={"Cookie": cookie}
+        ),
     )
-    assert sorted(response.status_code for response in results) == [201, 409]
-    response = await client.post(
-        "/api/auth/register", json={**body, "username": " DUPLICATE "}
-    )
-    assert response.status_code == 409 and PASSWORD not in response.text
+    assert sorted(response.status_code for response in results) == [201, 401]
 
 
 @pytest.mark.parametrize(
@@ -167,9 +174,7 @@ async def test_membership_transitions(members, source, action, destination):
 async def test_deactivation_revokes_all_sessions_permanently(members):
     client, database, _, users, tokens = members
     for _ in range(2):
-        login = await client.post(
-            "/api/auth/login", json={"username": "member", "password": PASSWORD}
-        )
+        login = await oauth_login(client, 1000 + users["member"])
         assert login.status_code == 200
     old_cookie = client.cookies.get("bluddit_refresh")
     target = f"/api/accounts/{users['member']}"
@@ -194,11 +199,7 @@ async def test_deactivation_revokes_all_sessions_permanently(members):
     ).status_code == 401
     assert client.cookies.get("bluddit_refresh") == old_cookie
     assert (await client.post("/api/auth/token")).status_code == 401
-    assert (
-        await client.post(
-            "/api/auth/login", json={"username": "member", "password": PASSWORD}
-        )
-    ).status_code == 200
+    assert (await oauth_login(client, 1000 + users["member"])).status_code == 200
 
 
 async def test_role_permissions_protected_gm_and_live_authority(members):
@@ -516,7 +517,10 @@ async def test_repository_account_models_and_missing_rows(members):
     _, database, _, users, tokens = members
     repository = MembershipRepository(database)
     auth = AuthRepository(database)
-    account = await repository.register("typed_member", "Typed Member", ENCODED)
+    ticket = new_token()
+    oauth = OAuthRepository(database)
+    await oauth.create_registration(token_hash(ticket), identity(9999))
+    account = await oauth.register(token_hash(ticket), "Typed Member")
     assert isinstance(account, Account)
     assert account.membership_state is MembershipState.PENDING
     assert account.role_name is Role.MEMBER
@@ -526,9 +530,9 @@ async def test_repository_account_models_and_missing_rows(members):
     assert await repository.list_accounts("pending", 1, 1) == [account]
     assert await repository.list_accounts(None, 1, 100) == []
 
-    credentials = await auth.get_account_credentials(account.username)
+    credentials = await auth.get_account_credentials("pending")
     assert isinstance(credentials, AccountCredentials)
-    assert credentials.id == account.id
+    assert credentials.id == users["pending"]
     assert credentials.password_hash == ENCODED
     assert credentials.membership_state is MembershipState.PENDING
     assert ENCODED not in repr(credentials)
