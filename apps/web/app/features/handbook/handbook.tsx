@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { createOptions, sectionsOptions } from './queries';
 import { SectionForm } from './section-form';
 import { Attribution } from './section';
+import { HandbookMarkdown } from './markdown';
 
 export function Handbook() {
   const actor = useAccount();
@@ -107,9 +108,7 @@ export function Handbook() {
                   {section.title}
                 </Link>
                 <Attribution section={section} />
-                <p className="line-clamp-3 [overflow-wrap:anywhere] text-sm text-muted-foreground">
-                  {section.body}
-                </p>
+                <HandbookMarkdown body={section.body} compact />
               </CardContent>
             </Card>
           ))}

@@ -1,4 +1,4 @@
-"""Public handbook records and validated officer edits (plain text only)."""
+"""Public handbook records and validated officer edits storing Markdown source."""
 
 from datetime import datetime
 

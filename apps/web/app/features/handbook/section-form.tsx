@@ -35,7 +35,7 @@ export function SectionForm({
           {section ? `Editing revision ${section.revision}` : 'New handbook section'}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Content is plain text. Every save publishes immediately and keeps the previous revision.
+          Content uses Markdown. Every save publishes immediately and keeps the previous revision.
         </p>
         <form onSubmit={save} className="space-y-4">
           {!section && (
@@ -76,7 +76,13 @@ export function SectionForm({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               className="w-full min-w-0 rounded-md border bg-background p-3 text-base"
+              aria-describedby="section-body-help"
             />
+            <p id="section-body-help" className="text-sm text-muted-foreground">
+              Use ## Heading, **bold**, - list items, and [link text](https://example.com).
+              Tables and task lists are supported. Separate paragraphs with a blank line.
+              HTML is displayed as text.
+            </p>
           </div>
           {error != null && <ErrorNotice error={error} />}
           {conflict && (
