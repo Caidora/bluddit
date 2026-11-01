@@ -228,6 +228,8 @@ class ReferencesService:
             for detail in await self.client.details(
                 "/data/wow/profession", "professions"
             ):
+                if detail["name"] == "Test Profession [DNT]":
+                    continue
                 category_type = (detail.get("type") or {}).get("type")
                 profession_type = {"PRIMARY": "primary", "SECONDARY": "secondary"}.get(
                     category_type

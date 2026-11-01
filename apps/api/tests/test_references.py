@@ -375,3 +375,111 @@ def test_retired_assignments_and_progress_are_preserved_but_not_reassigned():
     record.spec_id = "mage-frost"
     next(c for c in refs.classes if c.id == "mage").specs = []
     validate_values(BludPatch(archived=True), refs, record)
+
+
+@pytest.fixture
+def clean_provider_env(monkeypatch):
+    import os
+
+    for key in os.environ:
+        if key.startswith(("BATTLE_NET_", "BLIZZARD_")):
+            monkeypatch.delenv(key)
+    return monkeypatch
+
+
+def test_catalog_uses_existing_battlenet_app_credentials(clean_provider_env):
+    clean_provider_env.setenv("BATTLE_NET_CLIENT_ID", "existing-app")
+    clean_provider_env.setenv("BATTLE_NET_CLIENT_SECRET", "existing-secret")
+    settings = BlizzardSettings.from_env()
+    assert settings.enabled
+    assert (settings.client_id, settings.client_secret) == (
+        "existing-app",
+        "existing-secret",
+    )
+
+
+def test_catalog_uses_production_secret_files_even_with_empty_override_file(
+    clean_provider_env, tmp_path
+):
+    for name, value in [
+        ("BATTLE_NET_CLIENT_ID", "existing-app"),
+        ("BATTLE_NET_CLIENT_SECRET", "existing-secret"),
+        ("BLIZZARD_CLIENT_SECRET", ""),
+    ]:
+        path = tmp_path / name
+        path.write_text(value)
+        clean_provider_env.setenv(name + "_FILE", str(path))
+    settings = BlizzardSettings.from_env()
+    assert settings.enabled and settings.client_id == "existing-app"
+    assert settings.client_secret == "existing-secret"
+
+
+def test_explicit_catalog_pair_overrides_signin_credentials(clean_provider_env):
+    clean_provider_env.setenv("BLIZZARD_CLIENT_ID", "catalog-app")
+    clean_provider_env.setenv("BLIZZARD_CLIENT_SECRET", "catalog-secret")
+    clean_provider_env.setenv("BATTLE_NET_CLIENT_SECRET_FILE", "/must-not-be-read")
+    settings = BlizzardSettings.from_env()
+    assert (settings.client_id, settings.client_secret) == (
+        "catalog-app",
+        "catalog-secret",
+    )
+
+
+def test_catalog_is_disabled_without_any_credentials(clean_provider_env):
+    assert not BlizzardSettings.from_env().enabled
+
+
+@pytest.mark.parametrize("name", ["BLIZZARD_CLIENT_ID", "BLIZZARD_CLIENT_SECRET"])
+def test_partial_catalog_override_does_not_mix_credential_pairs(
+    clean_provider_env, name
+):
+    clean_provider_env.setenv("BATTLE_NET_CLIENT_ID", "existing-app")
+    clean_provider_env.setenv("BATTLE_NET_CLIENT_SECRET", "existing-secret")
+    clean_provider_env.setenv(name, "partial-override")
+    with pytest.raises(RuntimeError, match="complete"):
+        BlizzardSettings.from_env()
+
+
+async def test_live_forever_empty_journal_shape_is_normalized_and_cached():
+    body = {
+        "_links": {
+            "self": {
+                "href": "https://us.api.blizzard.com/data/wow/journal-instance/?namespace=static-1.60.1_70399-forever-us"
+            }
+        }
+    }
+    client = make_client(lambda request: respond(request, body))
+    service = ReferencesService(client)
+    await service.refresh("dungeons")
+    cached = await client.repository.cached(client.key("catalog", "dungeons"))
+    assert cached.document == {"published": True}
+    assert cached.fetched_at is not None
+    await client.http.aclose()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"_links": {}}, {"_links": {"self": {"href": "https://example.com/wrong"}}}],
+)
+async def test_missing_journal_collection_still_rejects_malformed_responses(body):
+    client = make_client(lambda request: respond(request, body))
+    with pytest.raises(ValueError, match="Missing provider collection"):
+        await client.index("/data/wow/journal-instance/index", "instances")
+    await client.http.aclose()
+
+
+async def test_blizzard_internal_test_profession_is_not_selectable():
+    client = make_client(
+        lambda request: respond(
+            request,
+            {"professions": [{"id": 1, "name": "Test Profession [DNT]"}]}
+            if request.url.path.endswith("index")
+            else {
+                "id": 1,
+                "name": "Test Profession [DNT]",
+                "type": {"type": "PRIMARY"},
+            },
+        )
+    )
+    assert await ReferencesService(client).fetch("professions", []) == []
+    await client.http.aclose()
