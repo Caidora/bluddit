@@ -2,15 +2,15 @@
 
 ## All changes go through a pull request
 
-**Every ticket must be implemented on a branch and merged into `main` through a
+**Every change must be implemented on a branch and merged into `main` through a
 pull request (PR). Never commit or push directly to `main`.** This applies to
 everyone, including maintainers and AI contributors, and includes documentation,
 configuration, dependency updates, and urgent fixes.
 
 1. Start from the latest `main` and create a descriptive branch such as
-   `feature/02-sql-migrations` or `feature/fix-event-time-display`.
+   `feature/sql-migrations` or `feature/fix-event-time-display`.
 2. Keep commits focused, with messages that explain the change.
-3. Open a PR targeting `main`, linking the ticket or issue it addresses.
+3. Open a PR targeting `main`, linking the issue it addresses.
 4. Run the relevant checks, resolve review feedback, and obtain approval from
    another maintainer before merging. Required CI checks must pass; do not bypass
    checks or review requirements.
@@ -25,17 +25,37 @@ repository protection.
 ## Choose and scope work
 
 - Read the [README](README.md), [release-1 feature plan](website-feature-plan.md),
-  [implementation workflow](tickets/README.md), and corresponding
-  [GitHub issue](https://github.com/Caidora/bluddit/issues) before starting.
-- Complete migrated release-1 ticket sections in their original numerical order,
-  one at a time, respecting the dependencies linked in their GitHub issues.
-  Coordinate with maintainers before taking a ticket or changing its scope.
+  and corresponding [GitHub issue](https://github.com/Caidora/bluddit/issues) before
+  starting. Inspect the current code and repository instructions before choosing
+  exact files or commands.
+- Use current agreed feature scope and dependencies to choose work; historical
+  implementation numbering is not a delivery order. Coordinate with maintainers
+  before taking work or changing its scope.
 - For a new bug or improvement, create or agree on an issue first. Include the
   problem, expected behavior, and reproduction steps where applicable.
-- Keep each PR focused on one ticket or coherent fix. Avoid unrelated refactors,
+- Keep each PR focused on one feature or coherent fix. Avoid unrelated refactors,
   formatting changes, and unplanned features.
 - Human and AI contributors follow the same workflow. Review generated code and
   verify its behavior before submitting it.
+
+## Product and delivery defaults
+
+- Use one guild and one same-origin React Router SPA/FastAPI deployment. Use the
+  existing Hetzner production environment; there is no separate staging environment.
+- Read the feature plan as product intent, with current agreed feature scope taking
+  precedence over older migrated requirements. The sheets supply context and ideas,
+  not a feature-parity checklist. Do not add deferred features as hidden dependencies.
+- Keep each feature complete across its necessary database changes, authorization,
+  API, UI, and verification. An API-only implementation is incomplete when the
+  agreed workflow requires a UI.
+- Preserve member data and edits. Confirm server-specific rules, identity mappings,
+  real event times, and source data rather than fabricate them or make template
+  values authoritative. Any future import needs explicit scope and review; live
+  spreadsheet synchronization is not a default.
+- Keep CI current as features and checks are added. Record implementation,
+  migrations/configuration, verification, deployed versions, and unresolved
+  acceptance items in the corresponding GitHub issue or PR. A completed local
+  check does not establish deployed acceptance.
 
 ## Set up and verify locally
 
@@ -95,9 +115,8 @@ so run the Ruff commands explicitly.
   `_id`: `accounts.account_id`, `sessions.session_id`, and
   `refresh_sessions.refresh_session_id`, never a bare `id`. Foreign-key ID columns
   use the referenced entity's name, such as `sessions.account_id`. This applies to
-  new schema work; existing bare `id` columns are tracked in
-  [issue #36](https://github.com/Caidora/bluddit/issues/36) (historical ticket 21)
-  and must not be renamed as an unrelated change. Natural and composite keys do not need synthetic ID columns.
+  new schema work; existing bare `id` columns must not be renamed as an unrelated
+  change. Coordinate their migration as separate schema maintenance. Natural and composite keys do not need synthetic ID columns.
 - Keep application SQL in repository methods, using one triple-quoted string per
   query. Repository methods represent complete persistence operations and may
   execute multiple queries in one transaction; do not split an operation into
@@ -106,7 +125,7 @@ so run the Ruff commands explicitly.
   a service layer only when needed. Avoid static methods in new repositories.
   Extract functionality deliberately and sparingly; prefer inline route validation
   when it makes the operation easier to follow.
-  Existing repository patterns outside the current ticket can remain unchanged.
+  Existing repository patterns outside the current change can remain unchanged.
   Routes belong in `bluddit_api/routes`, with shared helpers in `bluddit_api/utils`.
   Use Pydantic query models and Psycopg `class_row(Model)` for returned records,
   with explicit repository return types and attribute access in callers. Keep
@@ -144,7 +163,7 @@ so run the Ruff commands explicitly.
 
 ## Make PRs easy to review
 
-Include the ticket or issue link, a concise explanation of the problem and change,
+Include the issue link, a concise explanation of the problem and change,
 the checks performed and their results, and any remaining limitations. Add
 screenshots for visible UI changes and call out migrations, new configuration,
 dependency changes, and deployment or rollback considerations when applicable.
@@ -153,7 +172,7 @@ Use a draft PR for unfinished work. Keep feedback constructive, explain importan
 tradeoffs, and resolve outstanding discussions before merge. After substantial
 changes during review, rerun affected checks and request another review.
 
-## Deployment and ticket completion
+## Deployment and acceptance
 
 Successful builds on `main` trigger production deployment, so merging has an
 operational effect. All production changes must use the GitHub Actions workflow
@@ -163,7 +182,7 @@ Interactive first-officer creation and password resets through the documented
 administrative CLI are the approved exception to Actions-only production changes.
 Use hidden terminal prompts; never put passwords in commands, logs, or PRs.
 
-After merging an implementation ticket, confirm deployment succeeded and verify
+After merging a feature, confirm deployment succeeded and verify
 its acceptance criteria in production using dedicated test records, preserving
 member data. Record implementation details, verification evidence, deployed
 version, and unresolved items in the GitHub issue. Close it as completed only

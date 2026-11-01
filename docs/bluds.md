@@ -1,7 +1,6 @@
 # Bluds
 
-Issue [#18](https://github.com/Caidora/bluddit/issues/18) delivers a focused guild
-character directory. `/bluds` replaces the roster placeholder; `/roster` redirects
+Bluds provides a focused guild character directory. `/bluds` replaces the roster placeholder; `/roster` redirects
 while preserving query parameters. Character details live at `/bluds/:bludId`.
 
 Each account can create multiple Bluds. Name, class, and the actual character
@@ -73,10 +72,9 @@ Ruins of Lordaeron 15–20, Excavation Site 24–29, and City of Dalaran 28–33
 High-level guides marked Coming Soon have no fabricated URLs. See the
 [operations runbook](operations.md#bluds-migration-and-reference-updates) for catalog updates.
 
-## Deferred migrated requirements
+## Deferred scope
 
-This delivery supersedes the broader implementation scope originally migrated
-into #18. Profiles/timezones, main/alt rules, race/current character level,
+Profiles/timezones, main/alt rules, race/current character level,
 composition summaries, squads, wishlist features, quest tracking, and external
 catalog integration remain deferred. They are not represented as completed by
 this feature. No initial spreadsheet/member import is included.

@@ -1,109 +1,67 @@
-# Bluddit: release 1 feature plan
+# Bluddit: Release 1 feature plan
 
-## Goal
+## Product direction
 
-Replace the guild spreadsheet with a simple website where members maintain their characters, track gear goals, join runs, and find the right guild crafters.
+Give Bluds a useful member website for WoW Forever characters, gear goals, activities, crafting help, and guild knowledge. The [Bludlets spreadsheet](https://docs.google.com/spreadsheets/d/1CtopiBvc1u_skUH29yOnmCAhc2qDYqVqrAiMTNWOgYE/edit) provides context and ideas; its structure and formulas do not define the product or the release checklist.
 
-The main workflow is **update my character → identify upgrades → join a useful run → record what I acquired**.
+See the [README](README.md#project-status) for current availability. The sections below describe intended behavior, including work that is still planned.
 
-Based on `high-level-plan.md` and the four tabs of the [Bludlets spreadsheet](https://docs.google.com/spreadsheets/d/1CtopiBvc1u_skUH29yOnmCAhc2qDYqVqrAiMTNWOgYE/edit).
+## Accounts and access
 
-## Release 1 overview
+Username/password registration creates a pending Member requiring officer approval. Active members use server-side sessions. Officers administer membership and guild knowledge; only the GM changes account roles or transfers the GM role. Password recovery uses the administrative CLI, without email or third-party login integration.
 
-| Feature | What members can do |
-| --- | --- |
-| Profiles and roster | Maintain characters and professions; find members and view squads |
-| Gear wishlists | Track needed and acquired items; see which dungeons benefit the guild |
-| Events and signups | See local start times, sign up with a character and role, and check roster status |
-| Crafting directory | Find crafters, material recipients, and delivery instructions |
-| Guild handbook | Read the charter, leadership responsibilities, and operational rules |
-| Member home page | See upcoming events and quickly reach personal and guild information |
+Permissions gate actions, with persisted ownership or management relationships limiting the records each action can affect. Enforce both at the API. Organizer and quartermaster responsibilities are not additional account roles. Do not introduce assignment machinery until the corresponding feature needs it.
 
-## 1. Profiles, roster, and squads
+## Bluds
 
-- Members sign in and edit their own profile and timezone.
-- Characters include main/alt status, class, race, current level, primary and secondary roles, and professions.
-- Members can filter the roster by role, profession, squad, or region.
-- Officers maintain Alpha, Bravo, flex assignments, and leveling pairs.
-- Squad pages show members, assigned roles, and relevant class utility.
-- Class, role, armor, and profession summaries update automatically from character records.
+- Members maintain multiple characters and browse a searchable guild directory with character details.
+- Name, class, and user-entered creation date are required. Spec, professions and levels, and farming zone can remain blank. Show when profession and farming-zone information was updated.
+- Dungeon progress distinguishes not completed, completed, and completed with interest in rerunning. Both completed states count as complete.
+- Search and filters help members find characters by owner/name, class, profession, farming zone, or dungeon status, including a view of their own characters.
+- Owners edit their characters; Officer/GM corrections are explicit and cannot reassign ownership. Archive/restore preserves character identity and progress.
+- Typed, API-owned reference data supplies stable IDs and available dungeon level ranges and guide/quest links. No live game-data provider or quest tracking is required.
+- Character updates use last-write-wins behavior; revision/conflict workflows are outside the agreed character scope.
 
-## 2. Gear wishlists and farming priorities
+Profiles/timezones, main/alt constraints, race/current level, composition summaries, and squads are deferred from this character scope.
 
-- Members add, edit, remove, and filter targets for their own characters.
-- Targets include item name, slot, role/spec, source, boss, notes, and Needed/Acquired status.
-- Members mark items acquired and can undo mistakes.
-- The guild view ranks dungeons by outstanding target count and shows the members and items behind each ranking.
-- Crafting and quest targets remain identifiable separately from dungeon drops.
-- Personal and guild totals update automatically when targets change.
+## Events
 
-Label the progress metric **wishlist completion** so its meaning is clear.
+Any active member can create an activity. Use a general event with optional fields such as destination, maximum group size, and expected duration, rather than requiring a separate model for every activity. Support dungeon runs, leveling, questing, PvP, and guild meetings; raid-specific support is deferred.
 
-## 3. Events and signups
+Store one authoritative start instant and show a clearly labelled time in the viewer’s timezone. Handle daylight-saving transitions and date changes across Auckland, Sydney, and Perth. Members can sign up with a character and role, change availability, or withdraw. Availability and organizer-assigned confirmed/standby status are separate; one member has one signup per event. Event managers maintain the event and roster through explicit resource authorization. Validate optional capacity and role limits where supplied.
 
-- Members see upcoming runs with destination, organizer, start time, expected duration, requirements, and open roles.
-- Start times display in each member’s timezone, including daylight-saving changes.
-- Members sign up with a character and role, indicate tentative availability, or decline.
-- Members can change or withdraw signups and see pending, confirmed, or standby status.
-- Organizers create events, assign rosters, and fill gaps with flex members.
-- Events link to destination wishlist needs to help organizers choose useful runs.
-- Group capacity and required roles are configurable for the activity.
+Do not make event creation depend on deferred squads or guild farming rankings. Precise timezone handling belongs to the scheduling workflow; it does not require the broader deferred member-profile feature.
 
-## 4. Crafting and material directory
+## Personal gear wishlist
 
-- Search materials or categories to find designated recipients, intended outputs, priorities, and delivery instructions.
-- View crafters’ professions, accepted materials, deliverables, and specializations.
-- Read routing rules for drops, recipes, gems, and other guild resources.
-- See profession and camp-buff coverage based on maintained assignments.
-- Quartermasters update routing instructions and designated recipients.
+Members maintain character-owned targets with item, slot, intended role/spec, source, optional boss, notes, and needed/acquired status. Support adding, editing, deleting, filtering, marking acquired, and undoing an acquisition. Prevent accidental exact duplicates while keeping different characters’ needs separate.
 
-## 5. Guild handbook
+Use explicit item descriptions and stable source IDs for dungeons, crafting, quests, and other sources, without requiring an external item API. Enforce ownership and explicit officer corrections. Guild-wide dungeon rankings and composition/farming dashboards are deferred; a personal wishlist can ship independently.
 
-- Publish the charter, leadership responsibilities, attendance expectations, loot policy, material-handling rules, and communication standards.
-- Link relevant rules from event and directory pages.
-- Officers can edit handbook content, with an updated date and change history.
-- Show the appropriate contacts for private concerns.
+## Materials and crafters
 
-## 6. Member home page
+Search materials or categories to find designated recipients, intended outputs, priorities, and delivery instructions. Link crafters to maintained character professions, specializations, accepted materials, and deliverables. Recipients can include multiple characters and a named guild-bank destination without inventory accounting.
 
-- My upcoming events, local start times, and roster status.
-- Links to my characters, squad, and wishlist.
-- Dungeons that benefit me and current guild farming priorities.
-- Material/crafter search and handbook access.
+Officer/GM maintenance must preserve explicit recipient assignments rather than infer delivery destinations from professions. Show inactive recipients clearly. Any delegated quartermaster controls need an explicit scoped authorization model. Automated camp-buff coverage and profession-composition dashboards are deferred.
 
-Navigation: **Home · Roster & Squads · Gear & Farming · Events · Crafting Directory · Guild Handbook**.
+## Guild handbook
 
-All core actions should work comfortably on a phone, with clear forms and readable lists.
+Start with an empty handbook. Officers author sections about rules, leadership, expectations, and useful guild knowledge; the application does not seed policy prose or contacts. Members browse and search current content. Edits retain immutable, attributable revisions and detect stale saves. Render content safely; richer Markdown formatting is a planned improvement. Related features can link to handbook guidance without copying policy text.
 
-## Access
+## Member home
 
-| User | Permissions |
-| --- | --- |
-| Member | View member areas; edit own profile, characters, wishlist, and signups |
-| Organizer / squad lead | Manage assigned squads, events, and rosters |
-| Quartermaster | Maintain material routing and crafter assignments |
-| Officer / admin | Approve membership, edit rules, and correct shared records; only the GM promotes/demotes account roles or passes GM |
+Connect the completed tools through upcoming activities and signup/roster status, character and wishlist shortcuts, crafter/material search, and handbook access. Reuse current records rather than maintain duplicate totals. Provide useful empty states and a route into character setup for a new member. Deferred squads and farming dashboards are not prerequisites for a useful home page.
 
-Use session-based authentication. Membership requires an invitation or officer approval.
+## Database recovery
 
-Release 1 uses officer-approved registration. Each account has one role, with
-permissions defined by fixed Python mappings. The Guild Master is protected from
-Officer changes and delegates that role through an atomic transfer. Resource
-ownership and manager/quartermaster assignments further constrain feature actions.
+Expand the existing deployment backup/restore checks into an operational recovery path: documented snapshots and restores, configurable retention, scheduled backups, and storage outside the application host’s failure boundary. Restore into an isolated database and verify representative records. Backup failures must be visible to the operator. Existing on-host deployment backups alone do not provide disaster recovery.
 
-## Before launch
+## Delivery and boundaries
 
-- Confirm member data and wishlist entries before importing them: the wishlist is labelled as a template.
-- Keep planned alternates and expected maximum levels separate from existing characters and current levels.
-- Confirm server-specific classes, item sources, and camp-buff rules.
-- Choose the authoritative event schedule: the sheet lists both 20:30 and 21:00 NZDT windows.
-- Collect precise member timezones instead of relying on “AU” or “NZ” labels.
-- Import shared information once and calculate summaries from those records, including newly added members and items.
-- Trial with a squad across the regions, reconcile the data, and set a date for switching from the sheet.
-- Preserve a sheet snapshot and provide core data exports and database backups.
+Common workflows must work on a phone and with a keyboard, with clear loading, empty, validation, and error states. Deliver complete database/API/UI behavior with server authorization, meaningful verification, and deployment evidence. Do not infer availability from a placeholder page or from work being closed without implementation.
 
-## Completion criteria
+Squads, leveling pairs, composition summaries, guild farming rankings, camp-buff coverage, automated spreadsheet import, and a formal spreadsheet cutover are not current release commitments. AI product features, crafting requests, cooldown/loot tracking, recurring events, and notifications require separately agreed scope.
 
-Release 1 is complete when members can maintain their own characters and wishlists, find crafters and guild rules, and join a run without using the spreadsheet. Organizers can see member needs, assign a roster, and communicate one correct event time across regions.
+The sheets can inform future decisions without requiring a migration project. If data is ever brought across, confirm ownership and actual values first: template wishlists, planned characters, estimated levels, broad regions, and suggested schedule windows must not silently become authoritative member data or events. Preserve member edits and do not add live synchronization by default.
 
-Use the stack specified in `high-level-plan.md`: React Router framework with client-side rendering (CSR / SPA mode), FastAPI, PostgreSQL with explicit SQL and no ORM, Nginx, session authentication, Docker Compose, and GitHub Actions.
+Use the architecture in the [high-level plan](high-level-plan.md) and delivery practices in the [contribution guide](contributions.md). Release readiness depends on the agreed member workflows, permissions, regional times, and recoverable data working in production, rather than parity with every spreadsheet tab.

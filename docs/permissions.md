@@ -45,7 +45,7 @@ existing policy’s race tradeoff. Blud ownership is immutable and is also check
 in the update statement. `characters.edit_own` remains reserved for the broader
 character roadmap; it does not grant Bluds access. See [Bluds](bluds.md).
 
-## Contract for later feature tickets
+## Contract for future features
 
 Permissions gate an action. Attribute-based authorization then limits which
 records and operations that action can affect. Check both on the server; UI
@@ -56,18 +56,18 @@ Never accept a client-supplied owner/manager ID as proof of authority.
 
 | Future action | Permission gate | Required resource/state check |
 | --- | --- | --- |
-| Read guild profiles, squads, priorities, events, directory | `guild.read` | Active membership; resource visibility/state |
+| Read future guild profiles, wishlists, events, directory | `guild.read` | Active membership; resource visibility/state |
 | Edit profile/characters/wishlist/signups | Corresponding `*.edit_own` | Ownership through persisted account/character relationships; feature-specific state validation |
-| Manage a squad/event/roster | Add the action permission with that feature | Persisted manager assignment for that exact resource, plus allowed state |
-| Create an event | Add the action permission in ticket 11 | Validate creation and establish creator's manager relationship atomically |
-| Maintain routing/crafter/buff assignments | Add the action permission in tickets 13–14 | Persisted quartermaster responsibility and its defined scope |
+| Manage an event/roster | Add the action permission with that feature | Persisted manager assignment for that exact resource, plus allowed state |
+| Create an event | Add the action permission with events | Validate creation and establish creator's manager relationship atomically |
+| Maintain routing/crafter assignments | Add the action permission with directory maintenance | Persisted quartermaster responsibility and its defined scope |
 | Correct shared records / assign managers | `shared_records.correct` | Explicit Officer/GM action, existing target, and all record-validity constraints |
 
 Organizer and quartermaster are responsibilities, not account roles. Future
-tickets add action permissions to the fixed mappings alongside concrete assignment
+features add action permissions to the fixed mappings alongside concrete assignment
 models. Assignment-gated actions may be available to the Member role, but grant no
 write access without the qualifying relationship. No generic assignment schema or
-duty endpoints are introduced in ticket 4.
+duty endpoints exist in the current membership implementation.
 
 For example, creating a dungeon run can establish its creator as manager. Event
 updates must check the stored manager relationship. If the feature allows an
@@ -78,5 +78,5 @@ explicitly documented by that feature; do not infer it from the role name.
 Feature tests must deny cross-owner writes and unassigned/cross-resource manager
 writes, including changed relationships during concurrent updates. Duty removal
 and membership/role changes must affect subsequent requests without waiting for
-token expiry. Ticket 4 tests concrete account/role restrictions; resource-specific
-tests arrive with the resources in later tickets.
+token expiry. Current membership tests cover concrete account/role restrictions;
+resource-specific tests belong with the features that introduce those resources.
