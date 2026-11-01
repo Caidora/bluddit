@@ -34,7 +34,10 @@ CREATE TABLE blud_dungeons (
 
 -- A common read projection keeps directory and detail responses consistent.
 CREATE VIEW blud_records AS
-SELECT b.*, a.display_name AS owner_name,
+SELECT b.blud_id, b.account_id, b.name, b.class_id, b.spec_id,
+    b.character_created_on, b.farming_zone_id, b.farming_zone_updated_at,
+    b.archived, b.created_at, b.updated_at, b.updated_by_account_id,
+    a.display_name AS owner_name,
     COALESCE((SELECT jsonb_agg(jsonb_build_object(
         'profession_id', p.profession_id, 'level', p.level, 'updated_at', p.updated_at
     ) ORDER BY p.profession_id) FROM blud_professions p WHERE p.blud_id = b.blud_id), '[]'::jsonb) AS professions,

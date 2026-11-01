@@ -14,7 +14,11 @@ class BludsRepository:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
                 """
-                SELECT b.* FROM blud_records b
+                SELECT b.blud_id, b.account_id, b.owner_name, b.name, b.class_id,
+                    b.spec_id, b.character_created_on, b.farming_zone_id,
+                    b.farming_zone_updated_at, b.archived, b.created_at, b.updated_at,
+                    b.updated_by_account_id, b.professions, b.dungeons
+                FROM blud_records b
                 WHERE b.archived = %(archived)s
                   AND (NOT %(mine)s OR b.account_id = %(actor_id)s)
                   AND strpos(lower(b.name || ' ' || b.owner_name), lower(%(q)s)) > 0
@@ -31,10 +35,17 @@ class BludsRepository:
                 LIMIT %(fetch_limit)s OFFSET %(offset)s
                 """,
                 {
-                    **filters.model_dump(),
+                    "archived": filters.archived,
+                    "mine": filters.mine,
                     "q": filters.q.strip(),
+                    "class_id": filters.class_id,
+                    "farming_zone_id": filters.farming_zone_id,
+                    "profession_id": filters.profession_id,
+                    "dungeon_id": filters.dungeon_id,
+                    "dungeon_status": filters.dungeon_status,
                     "actor_id": actor_id,
                     "fetch_limit": filters.limit + 1,
+                    "offset": filters.offset,
                 },
             )
             cursor.row_factory = class_row(BludRecord)
@@ -43,7 +54,13 @@ class BludsRepository:
     async def get(self, blud_id: int) -> BludRecord | None:
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
-                """SELECT * FROM blud_records WHERE blud_id = %(blud_id)s""",
+                """
+                SELECT blud_id, account_id, owner_name, name, class_id, spec_id,
+                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    archived, created_at, updated_at, updated_by_account_id,
+                    professions, dungeons
+                FROM blud_records WHERE blud_id = %(blud_id)s
+                """,
                 {"blud_id": blud_id},
             )
             cursor.row_factory = class_row(BludRecord)
@@ -62,12 +79,25 @@ class BludsRepository:
                     %(actor_id)s)
                 RETURNING blud_id
                 """,
-                {**body.model_dump(), "actor_id": actor_id},
+                {
+                    "name": body.name,
+                    "class_id": body.class_id,
+                    "spec_id": body.spec_id,
+                    "character_created_on": body.character_created_on,
+                    "farming_zone_id": body.farming_zone_id,
+                    "actor_id": actor_id,
+                },
             )
             row = await cursor.fetchone()
             assert row is not None
             cursor = await connection.execute(
-                """SELECT * FROM blud_records WHERE blud_id = %(blud_id)s""",
+                """
+                SELECT blud_id, account_id, owner_name, name, class_id, spec_id,
+                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    archived, created_at, updated_at, updated_by_account_id,
+                    professions, dungeons
+                FROM blud_records WHERE blud_id = %(blud_id)s
+                """,
                 {"blud_id": row[0]},
             )
             cursor.row_factory = class_row(BludRecord)
@@ -78,13 +108,22 @@ class BludsRepository:
     async def update(
         self, blud_id: int, body: BludPatch, actor_id: int, can_correct: bool
     ) -> BludRecord | None:
-        values = body.model_dump(exclude={"professions", "dungeons"})
         parameters = {
-            **values,
+            "name": body.name,
+            "class_id": body.class_id,
+            "spec_id": body.spec_id,
+            "character_created_on": body.character_created_on,
+            "farming_zone_id": body.farming_zone_id,
+            "archived": body.archived,
+            "set_name": "name" in body.model_fields_set,
+            "set_class_id": "class_id" in body.model_fields_set,
+            "set_spec_id": "spec_id" in body.model_fields_set,
+            "set_character_created_on": "character_created_on" in body.model_fields_set,
+            "set_farming_zone_id": "farming_zone_id" in body.model_fields_set,
+            "set_archived": "archived" in body.model_fields_set,
             "blud_id": blud_id,
             "actor_id": actor_id,
             "can_correct": can_correct,
-            **{f"set_{field}": field in body.model_fields_set for field in values},
         }
         async with self.database.transaction() as connection:
             cursor = await connection.execute(
@@ -129,7 +168,11 @@ class BludsRepository:
                             level = EXCLUDED.level, updated_at = now()
                         WHERE blud_professions.level IS DISTINCT FROM EXCLUDED.level
                         """,
-                        {"blud_id": blud_id, **profession.model_dump()},
+                        {
+                            "blud_id": blud_id,
+                            "profession_id": profession.profession_id,
+                            "level": profession.level,
+                        },
                     )
             if body.dungeons is not None:
                 for dungeon in body.dungeons:
@@ -141,10 +184,20 @@ class BludsRepository:
                             status = EXCLUDED.status, updated_at = now()
                         WHERE blud_dungeons.status IS DISTINCT FROM EXCLUDED.status
                         """,
-                        {"blud_id": blud_id, **dungeon.model_dump()},
+                        {
+                            "blud_id": blud_id,
+                            "dungeon_id": dungeon.dungeon_id,
+                            "status": dungeon.status,
+                        },
                     )
             cursor = await connection.execute(
-                """SELECT * FROM blud_records WHERE blud_id = %(blud_id)s""",
+                """
+                SELECT blud_id, account_id, owner_name, name, class_id, spec_id,
+                    character_created_on, farming_zone_id, farming_zone_updated_at,
+                    archived, created_at, updated_at, updated_by_account_id,
+                    professions, dungeons
+                FROM blud_records WHERE blud_id = %(blud_id)s
+                """,
                 {"blud_id": blud_id},
             )
             cursor.row_factory = class_row(BludRecord)
