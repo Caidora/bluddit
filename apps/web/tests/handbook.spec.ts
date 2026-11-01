@@ -93,7 +93,7 @@ async function handbookApi(context: BrowserContext, sections: HandbookSection[] 
                   : 'A newer revision was saved. Keep a copy of your draft, then reload the latest section before editing again.'
                 : state.error === 404
                   ? 'Handbook section not found'
-                : 'Database unavailable',
+                  : 'Database unavailable',
           },
         });
       const current = state.sections.find((item) => item.slug === slug);
@@ -420,13 +420,18 @@ for (const width of [320, 1280]) {
     await expect(dialog).toContainText(original.title);
     await expect(dialog).toContainText('all its revision history');
     await noOverflow(page);
-    await page.screenshot({ path: test.info().outputPath(`delete-section-${width}.png`) });
+    await page.screenshot({
+      path: test.info().outputPath(`delete-section-${width}.png`),
+      animations: 'disabled',
+    });
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
     expect(api.writes).toBe(0);
     await page.getByRole('button', { name: 'Delete section' }).click();
     let release!: () => void;
-    api.holdDelete = new Promise<void>((resolve) => { release = resolve; });
+    api.holdDelete = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     await dialog.getByRole('button', { name: 'Permanently delete' }).click();
     await expect(dialog.getByRole('button', { name: 'Deleting…' })).toBeDisabled();
     await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeDisabled();
