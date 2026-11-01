@@ -9,12 +9,13 @@ import hashlib
 import json
 import os
 import re
-from pathlib import Path
 import time
+from urllib.parse import urlsplit
 
 import httpx
 
 from bluddit_api.repositories.references import ReferencesRepository
+from bluddit_api.utils.battlenet import read_setting
 
 
 class ProviderUnavailable(Exception):
@@ -32,12 +33,17 @@ class BlizzardSettings:
 
     @classmethod
     def from_env(cls):
-        secret = os.environ.get("BLIZZARD_CLIENT_SECRET", "")
-        secret_file = os.environ.get("BLIZZARD_CLIENT_SECRET_FILE")
-        if secret_file:
-            if secret:
-                raise RuntimeError("Set only one Blizzard secret source")
-            secret = Path(secret_file).read_text().strip()
+        client_id = read_setting("BLIZZARD_CLIENT_ID")
+        secret = read_setting("BLIZZARD_CLIENT_SECRET")
+        if not client_id and not secret:
+            # Both flows use the same confidential app. Separate catalog credentials
+            # are optional, not a second production provisioning requirement.
+            client_id = read_setting("BATTLE_NET_CLIENT_ID")
+            secret = read_setting("BATTLE_NET_CLIENT_SECRET")
+        if bool(client_id) != bool(secret):
+            raise RuntimeError(
+                "Configure a complete Blizzard or Battle.net client credential pair"
+            )
         region = os.environ.get("BLIZZARD_REGION", "us")
         namespace = os.environ.get(
             "BLIZZARD_STATIC_NAMESPACE", f"static-1.60.1_70399-forever-{region}"
@@ -51,9 +57,7 @@ class BlizzardSettings:
             raise RuntimeError(
                 "BLIZZARD_STATIC_NAMESPACE must be a versioned Forever namespace"
             )
-        return cls(
-            os.environ.get("BLIZZARD_CLIENT_ID", ""), secret, region, locale, namespace
-        )
+        return cls(client_id, secret, region, locale, namespace)
 
     @property
     def enabled(self):
@@ -185,6 +189,23 @@ class BlizzardClient:
             if not isinstance(body, dict):
                 raise ValueError("Expected provider object")
             if collection is not None:
+                # Forever currently represents an empty journal index with only
+                # its self link, omitting the instances array entirely.
+                if (
+                    collection == "instances"
+                    and path == "/data/wow/journal-instance/index"
+                    and set(body) == {"_links"}
+                ):
+                    links = body["_links"]
+                    self_link = links.get("self") if isinstance(links, dict) else None
+                    href = (
+                        self_link.get("href") if isinstance(self_link, dict) else None
+                    )
+                    if isinstance(href, str) and urlsplit(href).path.rstrip("/") in {
+                        path,
+                        path.removesuffix("/index"),
+                    }:
+                        body[collection] = []
                 if not isinstance(body.get(collection), list):
                     raise ValueError("Missing provider collection")
                 for entry in body[collection]:

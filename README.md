@@ -10,7 +10,7 @@ As of 1 November 2026, Release 1 is in development.
 
 - **Available:** the application foundation and production deployment, database migrations, Battle.net sign-in and legacy account migration, membership approval, account administration, permissions, and the guild handbook with officer editing and revision history.
 - **Merged:** the Bluds directory, character details, professions, and dungeon completion tracking are now included on `main`. Production acceptance is recorded separately from implementation.
-- **Implemented locally:** Blizzard-backed reference catalogs with durable hourly caching, automatic supported additions and preserved history (issue #57); live provider/production acceptance is pending. Farming zones are deferred.
+- **Implemented locally:** Blizzard-backed reference catalogs with durable hourly caching, automatic supported additions and preserved history (issue #57); live provider coverage is verified; production acceptance of credential reuse remains pending. Farming zones are deferred.
 - **Implemented locally:** event creation, editing, cancellation, organizer assignments, and timezone-aware scheduling (issue #20 section 11); production acceptance remains pending.
 - **Planned:** event signups and roster management, personal gear wishlists, material routing and the crafter directory, a useful member home page, and expanded database snapshot/recovery support.
 

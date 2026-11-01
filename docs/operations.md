@@ -721,21 +721,25 @@ Migration `0009_reference_data.sql` adds `reference_cache` and
 activate a curated catalog or rewrite member data. Cache rows contain public
 provider responses; OAuth tokens and credentials are never persisted there.
 
-Local development uses the optional `BLIZZARD_CLIENT_ID` and
-`BLIZZARD_CLIENT_SECRET` values in `.env`. Set `BLIZZARD_REGION` (default `us`),
-`BLIZZARD_LOCALE` (default `en_US`) and `BLIZZARD_STATIC_NAMESPACE` (initially
-`static-1.60.1_70399-forever-us`). Region and namespace must agree. The provider
-uses client credentials, not member Battle.net authorization.
+Game data reuses the existing `BATTLE_NET_CLIENT_ID` and
+`BATTLE_NET_CLIENT_SECRET` app credentials, including their `_FILE` variants.
+No additional production secrets are required. Tokens for game data still use
+client credentials and remain separate from member sign-in tokens.
 
-Production uses GitHub Actions secrets `BLIZZARD_CLIENT_ID` and
-`BLIZZARD_CLIENT_SECRET`, plus optional repository variables `BLIZZARD_REGION`,
-`BLIZZARD_LOCALE` and `BLIZZARD_STATIC_NAMESPACE`. The existing Actions deployment
-transfers the secret in its restrictive payload and installs
-`shared/blizzard_client_secret`, owned by UID 10001 with mode 0400, mounted only
-in the API. The API reads `BLIZZARD_CLIENT_SECRET_FILE`; do not set both secret
-sources. Empty credentials disable fetching without affecting readiness. Do not
-print tokens, credentials, authenticated response bodies or member records in
-verification logs.
+Optionally set a complete `BLIZZARD_CLIENT_ID`/`BLIZZARD_CLIENT_SECRET` pair to use
+a separate app. The same `_FILE` convention is supported. Blank overrides,
+including the empty production `BLIZZARD_CLIENT_SECRET_FILE`, fall back to the
+existing Battle.net app. A partial override is rejected instead of mixing apps.
+If neither pair is configured, fetching is disabled without affecting readiness.
+Never print tokens or credentials during verification.
+
+`BLIZZARD_REGION` defaults to `us`, `BLIZZARD_LOCALE` to `en_US`, and
+`BLIZZARD_STATIC_NAMESPACE` initially to `static-1.60.1_70399-forever-us`.
+Region and namespace must agree. These settings are optional repository variables
+for production. Separate app overrides can use Actions secrets
+`BLIZZARD_CLIENT_ID`/`BLIZZARD_CLIENT_SECRET`; the existing deployment installs
+`shared/blizzard_client_secret` owned by UID 10001 with mode 0400 and mounts it
+only in the API. Do not set a direct secret and its `_FILE` source together.
 
 The HTTP client uses 3-second connect and 10-second request timeouts. Each category
 refresh has a 90-second budget. PostgreSQL leases expire after 120 seconds;
@@ -769,13 +773,22 @@ fixtures. The browser API overrides only the reference dependency with synthetic
 choices so account/character/event persistence still uses the real API/database.
 It never relies on production Blizzard credentials.
 
-Live authenticated coverage has **not been verified** in the implementation
-environment because Blizzard credentials were unavailable. The linked
-[unofficial notes](https://mhuijskens.com/WoWForever/Api/) report the versioned
-namespace works and dungeon journals are empty; this is provisional, not deployed
-acceptance. Before enabling/closing #57:
+Live authenticated checks on **1 November 2026** used the local Battle.net app
+credentials against the configured US and EU Forever namespace. Indexes returned
+9 classes, 27 specializations and 13 professions. The US adapters successfully
+loaded class/spec details and all profession details. One profession is Blizzard's
+internal `Test Profession [DNT]`, which is excluded from selectable choices.
 
-1. Configure app credentials and the current namespace through Actions. Confirm
+The dungeon journal index returns HTTP 200 with only `_links.self`, pointing to
+`/data/wow/journal-instance/`; it omits `instances` entirely. This observed shape
+is normalized to an empty catalog. Journal expansion and dynamic mythic dungeon
+indexes were also empty. No curated dungeon fallback is added. Missing profession
+caps remain unknown: a skill-tier maximum is not assumed to be the overall cap.
+
+Production deployment of the credential-reuse fix and member acceptance remain
+pending. Before closing #57:
+
+1. Confirm the existing Battle.net app credentials and current namespace through Actions. Confirm
    deployment, readiness and migrations succeed.
 2. Sign in with a dedicated test account, open Bluds, and wait for the initial
    fetch. Verify classes/spec relationships, profession classifications/caps and

@@ -75,7 +75,7 @@ when Blizzard supplies them. The two-primary-profession rule remains local.
 Validated provider GET responses are cached in PostgreSQL for one hour. Complete
 categories publish atomically; malformed/failed refreshes preserve the last
 successful snapshot. Valid empty indexes retire active choices without deleting
-history. No credentials means no refresh; a fresh installation has no active
+history. The catalog reuses the configured Battle.net app unless a separate complete Blizzard credential pair is supplied. No app credentials means no refresh; a fresh installation has no active
 bundled fallback. Missing classes disable character creation, while other tools
 and existing records remain readable.
 
