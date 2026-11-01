@@ -30,6 +30,14 @@ class HandbookEdit(HandbookContent):
     expected_revision: int = Field(gt=0)
 
 
+class HandbookDelete(BaseModel):
+    expected_revision: int = Field(gt=0)
+
+
+class HandbookCurrentRevision(BaseModel):
+    current_revision: int
+
+
 class HandbookSectionsResponse(BaseModel):
     sections: list[HandbookSection]
 

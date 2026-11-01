@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from '@/components/session';
 import { PageTitle, ErrorNotice, Loading, EmptyState } from '@/components/patterns';
@@ -15,6 +15,7 @@ import { HandbookMarkdown } from './markdown';
 export function Handbook() {
   const actor = useAccount();
   const navigate = useNavigate();
+  const location = useLocation();
   const [params, setParams] = useSearchParams();
   const q = (params.get('q') ?? '').slice(0, 200);
   const query = useQuery(sectionsOptions(actor.id, q));
@@ -26,6 +27,7 @@ export function Handbook() {
       <PageTitle description="Guild rules, shared expectations, and useful contacts.">
         Guild Handbook
       </PageTitle>
+      {location.state?.handbookDeleted && <p role="status">Section deleted.</p>}
       <form
         className="mb-6 flex flex-wrap items-end gap-3"
         onSubmit={(event) => {

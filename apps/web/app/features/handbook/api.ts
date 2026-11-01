@@ -31,4 +31,10 @@ export const handbookApi = {
       body: JSON.stringify(edit),
     });
   },
+  delete(slug: string, expectedRevision: number) {
+    return authenticated<void>(
+      `/api/handbook/${encodeURIComponent(slug)}?expected_revision=${expectedRevision}`,
+      { method: 'DELETE' }
+    );
+  },
 };

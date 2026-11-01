@@ -2,11 +2,12 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 
 from bluddit_api.models.accounts import Account
 from bluddit_api.models.handbook import (
     HandbookCreate,
+    HandbookDelete,
     HandbookEdit,
     HandbookSection,
     HandbookSectionsResponse,
@@ -20,6 +21,7 @@ from bluddit_api.utils.permissions import Permission
 router = APIRouter(prefix="/api/handbook", tags=["handbook"])
 Reader = Annotated[Account, Depends(require_permission(Permission.GUILD_READ))]
 Editor = Annotated[Account, Depends(require_permission(Permission.HANDBOOK_EDIT))]
+Deleter = Annotated[Account, Depends(require_permission(Permission.HANDBOOK_DELETE))]
 Slug = Annotated[str, Path(pattern=r"^[a-z][a-z0-9-]{0,79}$")]
 
 
@@ -83,3 +85,22 @@ async def revisions(
         limit=limit,
         offset=offset,
     )
+
+
+@router.delete("/{slug}", status_code=204)
+async def delete_section(
+    slug: Slug,
+    query: Annotated[HandbookDelete, Query()],
+    actor: Deleter,
+    repository: HandbookRepositoryDep,
+) -> Response:
+    try:
+        deleted = await repository.delete(slug, query.expected_revision)
+    except StaleHandbookEdit:
+        raise HTTPException(
+            409,
+            "A newer revision was saved. Reload and review the latest section before deleting again.",
+        ) from None
+    if not deleted:
+        raise HTTPException(404, "Handbook section not found")
+    return Response(status_code=204)

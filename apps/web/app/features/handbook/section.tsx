@@ -1,10 +1,27 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAccount } from '@/components/session';
 import { PageTitle, ErrorNotice, Loading } from '@/components/patterns';
 import { Button } from '@/components/ui/button';
-import { editOptions, revisionsOptions, sectionOptions, sectionsOptions } from './queries';
+import { ApiError } from '@/lib/http';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  deleteOptions,
+  editOptions,
+  revisionsOptions,
+  sectionOptions,
+  sectionsOptions,
+} from './queries';
 import { SectionForm } from './section-form';
 import { HandbookMarkdown } from './markdown';
 import type { HandbookSection } from './types';
@@ -25,13 +42,19 @@ export function HandbookSectionPage() {
 
 function Section({ slug }: { slug: string }) {
   const actor = useAccount();
+  const navigate = useNavigate();
+  const client = useQueryClient();
   const query = useQuery(sectionOptions(actor.id, slug));
   const navigation = useQuery(sectionsOptions(actor.id));
-  const mutation = useMutation(editOptions(useQueryClient(), actor.id, slug));
+  const mutation = useMutation(editOptions(client, actor.id, slug));
+  const deletion = useMutation(deleteOptions(client, actor.id, slug));
+  const [deleteTarget, setDeleteTarget] = useState<HandbookSection | null>(null);
+  const [mustReload, setMustReload] = useState(false);
   const [draft, setDraft] = useState<HandbookSection | null>(null);
   const [history, setHistory] = useState(false);
   const [saved, setSaved] = useState(false);
   const editor = actor.permissions.includes('handbook.edit');
+  const deleter = actor.permissions.includes('handbook.delete');
   if (query.isPending) return <Loading label="Loading section…" />;
   if (query.isError && !query.data)
     return (
@@ -90,7 +113,7 @@ function Section({ slug }: { slug: string }) {
         <div className="mt-6 space-y-4">
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={draft !== null}
+              disabled={draft !== null || deletion.isPending}
               onClick={() => {
                 mutation.reset();
                 setSaved(false);
@@ -102,6 +125,30 @@ function Section({ slug }: { slug: string }) {
             <Button variant="outline" onClick={() => setHistory(!history)}>
               {history ? 'Hide revisions' : 'View revisions'}
             </Button>
+            {deleter && (
+              <Button
+                variant="destructive"
+                disabled={draft !== null || mutation.isPending || deletion.isPending || mustReload}
+                onClick={() => {
+                  deletion.reset();
+                  setDeleteTarget(section);
+                }}
+              >
+                Delete section
+              </Button>
+            )}
+            {deleter && mustReload && (
+              <Button
+                variant="outline"
+                disabled={query.isFetching || deleteTarget !== null}
+                onClick={async () => {
+                  const result = await query.refetch();
+                  if (result.isSuccess) setMustReload(false);
+                }}
+              >
+                Reload section
+              </Button>
+            )}
           </div>
           {draft && (
             <SectionForm
@@ -124,6 +171,58 @@ function Section({ slug }: { slug: string }) {
             />
           )}
           {history && <History slug={slug} />}
+          <AlertDialog
+            open={deleter && deleteTarget !== null}
+            onOpenChange={(open) => {
+              if (!open && !deletion.isPending) setDeleteTarget(null);
+            }}
+          >
+            <AlertDialogContent
+              onEscapeKeyDown={(event) => {
+                if (deletion.isPending) event.preventDefault();
+              }}
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete {deleteTarget?.title}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently deletes this section and all its revision history. This cannot
+                  be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {deletion.isError && <ErrorNotice error={deletion.error} />}
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deletion.isPending}>Cancel</AlertDialogCancel>
+                {deletion.error instanceof ApiError && deletion.error.status === 404 ? (
+                  <Button
+                    onClick={() => {
+                      void navigate('/handbook');
+                    }}
+                  >
+                    Back to handbook
+                  </Button>
+                ) : (
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={deletion.isPending || mustReload}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      if (!deleteTarget || deletion.isPending) return;
+                      deletion.mutate(deleteTarget.revision, {
+                        onSuccess: () => {
+                          void navigate('/handbook', { state: { handbookDeleted: true } });
+                        },
+                        onError: (error) => {
+                          if (error instanceof ApiError && error.status === 409) setMustReload(true);
+                        },
+                      });
+                    }}
+                  >
+                    {deletion.isPending ? 'Deleting…' : 'Permanently delete'}
+                  </AlertDialogAction>
+                )}
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </div>

@@ -4,7 +4,12 @@ from psycopg.errors import UniqueViolation
 from psycopg.rows import class_row
 
 from bluddit_api.database import Database
-from bluddit_api.models.handbook import HandbookCreate, HandbookEdit, HandbookSection
+from bluddit_api.models.handbook import (
+    HandbookCreate,
+    HandbookCurrentRevision,
+    HandbookEdit,
+    HandbookSection,
+)
 
 
 class HandbookSlugExists(Exception):
@@ -144,3 +149,26 @@ class HandbookRepository:
                 {"slug": slug, "revision": revision},
             )
         return result
+
+    async def delete(self, slug: str, expected_revision: int) -> bool:
+        async with self.database.transaction() as connection:
+            cursor = await connection.execute(
+                """
+                SELECT current_revision FROM handbook_sections
+                WHERE slug = %(slug)s FOR UPDATE
+                """,
+                {"slug": slug},
+            )
+            cursor.row_factory = class_row(HandbookCurrentRevision)
+            row = await cursor.fetchone()
+            if row is None:
+                return False
+            if row.current_revision != expected_revision:
+                raise StaleHandbookEdit
+            await connection.execute(
+                """
+                DELETE FROM handbook_sections WHERE slug = %(slug)s
+                """,
+                {"slug": slug},
+            )
+        return True

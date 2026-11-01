@@ -29,6 +29,7 @@ export function officer(role: Role = 'officer'): CurrentAccount {
       'accounts.manage',
       'policy.read',
       'handbook.edit',
+      ...(role === 'guild_master' ? ['handbook.delete'] : []),
       'shared_records.correct',
     ],
   };
@@ -101,11 +102,11 @@ export async function mockApi(context: BrowserContext, initial: CurrentAccount |
     }
     if (path === '/api/permissions')
       return reply(200, {
-        permissions: ['guild.read', 'accounts.manage'],
+        permissions: ['guild.read', 'accounts.manage', 'handbook.delete'],
         roles: {
           member: ['guild.read'],
           officer: ['guild.read', 'accounts.manage'],
-          guild_master: ['guild.read', 'accounts.manage'],
+          guild_master: ['guild.read', 'accounts.manage', 'handbook.delete'],
         },
       });
     if (path === '/api/accounts/2' && method === 'GET') return reply(200, state.target);

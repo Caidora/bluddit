@@ -34,3 +34,14 @@ export const editOptions = (client: QueryClient, actor: number, slug: string) =>
       await client.invalidateQueries({ queryKey: keys.all(actor) });
     },
   });
+
+export const deleteOptions = (client: QueryClient, actor: number, slug: string) =>
+  mutationOptions({
+    mutationFn: (expectedRevision: number) => handbookApi.delete(slug, expectedRevision),
+    onSuccess: async () => {
+      await client.cancelQueries({ queryKey: keys.all(actor) });
+      client.removeQueries({ queryKey: [...keys.all(actor), 'section', slug] });
+      client.removeQueries({ queryKey: [...keys.all(actor), 'revisions', slug] });
+      await client.invalidateQueries({ queryKey: [...keys.all(actor), 'list'] });
+    },
+  });
